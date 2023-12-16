@@ -1,8 +1,6 @@
 #pragma once
 
-
-enum ForceType { eGravity, eMagnetic, eFriction };
-
+#include "structs.h"
 using namespace std;
 
 class Shape;
