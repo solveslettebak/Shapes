@@ -55,8 +55,6 @@ class AI;
 class Shape;
 
 
-
-
 class triggerLaser : public ITrigger {
 public:
 	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
@@ -77,126 +75,6 @@ public:
 		}
 	}
 };
-
-class Triangle : public Shape {
-public: 
-	Triangle(sTriangle t, float x_, float y_, olc::Pixel color_) {
-		original_shape = t;
-		x = x_; y = y_;
-		angle = 0.0f;
-		color = color_;
-
-		float cx = centroidX();
-		float cy = centroidY();
-		original_shape.x1 -= cx; original_shape.y1 -= cy;
-		original_shape.x2 -= cx; original_shape.y2 -= cy;
-		original_shape.x3 -= cx; original_shape.y3 -= cy;
-		rotated_shape = original_shape;
-	}
-
-	sTriangle worldCoordinates() { 
-		sTriangle result;
-		applyRotation();
-		result.x1 = rotated_shape.x1 + x;
-		result.y1 = rotated_shape.y1 + y;
-		result.x2 = rotated_shape.x2 + x;
-		result.y2 = rotated_shape.y2 + y;
-		result.x3 = rotated_shape.x3 + x;
-		result.y3 = rotated_shape.y3 + y;
-		return result;
-	}
-	float area() { return 0.5f * abs((original_shape.x1 - original_shape.x3) * (original_shape.y2 - original_shape.y1) - (original_shape.x1 - original_shape.x2) * (original_shape.y3 - original_shape.y1)); }
-	float centroidX() override { return (original_shape.x1 + original_shape.x2 + original_shape.x3) / 3.0f; }
-	float centroidY() override { return (original_shape.y1 + original_shape.y2 + original_shape.y3) / 3.0f; }
-	void rotate(float angle) override;
-	void applyRotation();
-	sTriangle rotated_shape, original_shape;
-};
-
-void Triangle::applyRotation() {
-	float cx = centroidX();
-	float cy = centroidY();
-	rotated_shape.x1 = cx + (original_shape.x1 - cx) * cos(angle) - (original_shape.y1 - cy) * sin(angle);
-	rotated_shape.y1 = cy + (original_shape.x1 - cx) * sin(angle) + (original_shape.y1 - cy) * cos(angle);
-	rotated_shape.x2 = cx + (original_shape.x2 - cx) * cos(angle) - (original_shape.y2 - cy) * sin(angle);
-	rotated_shape.y2 = cy + (original_shape.x2 - cx) * sin(angle) + (original_shape.y2 - cy) * cos(angle);
-	rotated_shape.x3 = cx + (original_shape.x3 - cx) * cos(angle) - (original_shape.y3 - cy) * sin(angle);
-	rotated_shape.y3 = cy + (original_shape.x3 - cx) * sin(angle) + (original_shape.y3 - cy) * cos(angle);
-}
-
-void Triangle::rotate(float angle_) { angle += angle_; applyRotation(); }
-
-class Circle : public Shape {
-public:
-	float r;
-	Circle(float x_, float y_, float r_, olc::Pixel color_) { x = x_; y = y_; r = r_; color = color_; }
-	float centroidX() override { return 0.0f; }
-	float centroidY() override { return 0.0f; }
-	float area() override { return 3.14f * r * r; }
-	void rotate(float angle_) override { angle += angle_; }
-};
-
-// axes aligned with x and y, no rotation
-class Rect: public Shape {
-public:
-	Rect(float x_, float y_, float w_, float h_, olc::Pixel color_) { x = x_; y = y_; w = w_; h = h_; color = color_; }
-	float w, h;
-	//olc::Pixel color;
-	float centroidX() override { return (x + w) / 2.0f; } // TODO: Rect isn't updated to have world coordinates and local yet. has only world.
-	float centroidY() override { return (y + h) / 2.0f; }
-	float area() override { return w * h; }
-	void rotate(float angle_) override {
-		angle += angle_; // no rotation, but can be used for direction, if it's a moving object.
-	}
-	sRect getStruct() { return sRect{ x, y, w, h }; }
-};
-
-class Line : public Shape {
-public:
-	float x2, y2;
-	float getX2() { return x2; }
-	float getY2() { return y2; }
-	Line(float x_, float y_) {
-		x = x_; y = y_; angle = 0.0f;
-		x2 = x + 1000.0f * cos(angle);
-		y2 = y + 1000.0f * sin(angle);
-	}
-	float centroidX() override { return x; }
-	float centroidY() override { return y; }
-	float area() override { return 0.0f; }
-	void rotate(float angle_) override {
-		angle += angle_;
-	}
-	sLine getStruct() { return sLine{ x, y, x + 1000.0f * cos(angle), y + 1000.0f * sin(angle) }; }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ITrigger::ITrigger() {};
-/*
-class TriggerBomb : public ITrigger {
-	void trigger(Obj owner, vector<Obj*> victims) {
-		// victims will be all objects within a certain radius of the bomb.
-		// loop through them, and apply damage and force.
-	};
-};
-class TriggerLaser : public ITrigger {
-	void trigger(Obj owner, vector<Obj*> victims) {};
-};
-*/
-
-
 
 
 
@@ -285,7 +163,7 @@ public:
 	World() { sAppName = "World"; }
 
 	void addRandomEnemy() {
-		shared_ptr<Triangle> shape2 = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15}, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
+		shared_ptr<Triangle> shape2 = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
 		sharedPtrTriangles.push_back(shape2);
 
 		shared_ptr<AI> enemy_AI = make_shared<AI_follow_user>(shape2, user_controlled_shape);
@@ -373,78 +251,14 @@ public:
 		for (auto& each : sharedPtrAI) { 
 			if (each->getDestroyFlag()) {
 				sharedPtrAI.erase(std::remove(sharedPtrAI.begin(), sharedPtrAI.end(), each), sharedPtrAI.end());
-				//break;
+				break; // find a better way. see the other delete stuff thingy
 			}
 			else { each->update(fElapsedTime); }
 		}
 
-		// combine all shapes into one vector
-		/*vector<shared_ptr<Shape>> shapes;
-		for (auto& each : sharedPtrTriangles) { shapes.push_back(each); }
-		for (auto& each : sharedPtrRectangles) { shapes.push_back(each); }
-		for (auto& each : sharedPtrCircles) { shapes.push_back(each); }*/
-
 		// ----- COLLISION ----- //
 
-		for (auto& line : sharedPtrLines) {
-			float minPx, minPy, px, py;
-			float minDistance = 1000000.0f;
-			bool collision = false;
-			shared_ptr<Shape> hitObject;
-
-			for (auto& triangle : sharedPtrTriangles) {
-				if (triangle == user_controlled_shape) continue; // don't collide with self
-				if (LineTriangleCollision(line->getStruct(), triangle->worldCoordinates(), px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = triangle;
-					}
-				}
-			}
-
-			for (auto& rectangle : sharedPtrRectangles) {
-				if (rectangle == user_controlled_shape) continue; // don't collide with self
-				if (LineRectCollision(line->getStruct(), rectangle->getStruct(), px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = rectangle;
-					}
-				}
-			}
-
-			for (auto& circle : sharedPtrCircles) {
-				if (circle == user_controlled_shape) continue; // don't collide with self
-				if (LineCircleCollision(line->getStruct(), sCircle{ circle->getX(), circle->getY(), circle->r }, px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = circle;
-					}
-				}
-			}
-
-			if (collision) {
-				DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
-				line->x2 = minPx;
-				line->y2 = minPy;
-				line->trigger(line, hitObject);
-			}
-			else {
-				line->x2 = line->getX() + 1000.0f * cos(line->getAngle());
-				line->y2 = line->getY() + 1000.0f * sin(line->getAngle());
-			}
-		}
+		checkCollisions();
 
 		// ---- DRAW ----- //
 
@@ -523,7 +337,74 @@ public:
 
 	void DrawTriangle(sTriangle t, olc::Pixel color) { FillTriangle(int(t.x1), int(t.y1), int(t.x2), int(t.y2), int(t.x3), int(t.y3), color); }
 
+
 #include "collisions.h"
+
+
+
+	void checkCollisions() {
+		for (auto& line : sharedPtrLines) {
+			float minPx, minPy, px, py;
+			float minDistance = 1000000.0f;
+			bool collision = false;
+			shared_ptr<Shape> hitObject;
+
+			for (auto& triangle : sharedPtrTriangles) {
+				if (triangle == user_controlled_shape) continue; // don't collide with self
+				if (LineTriangleCollision(line->getStruct(), triangle->worldCoordinates(), px, py)) {
+					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
+					if (distance < minDistance) {
+						collision = true;
+						minDistance = distance;
+						minPx = px;
+						minPy = py;
+						hitObject = triangle;
+					}
+				}
+			}
+
+			for (auto& rectangle : sharedPtrRectangles) {
+				if (rectangle == user_controlled_shape) continue; // don't collide with self
+				if (LineRectCollision(line->getStruct(), rectangle->getStruct(), px, py)) {
+					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
+					if (distance < minDistance) {
+						collision = true;
+						minDistance = distance;
+						minPx = px;
+						minPy = py;
+						hitObject = rectangle;
+					}
+				}
+			}
+
+			for (auto& circle : sharedPtrCircles) {
+				if (circle == user_controlled_shape) continue; // don't collide with self
+				if (LineCircleCollision(line->getStruct(), sCircle{ circle->getX(), circle->getY(), circle->r }, px, py)) {
+					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
+					if (distance < minDistance) {
+						collision = true;
+						minDistance = distance;
+						minPx = px;
+						minPy = py;
+						hitObject = circle;
+					}
+				}
+			}
+
+			if (collision) {
+				DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
+				line->x2 = minPx;
+				line->y2 = minPy;
+				line->trigger(line, hitObject);
+			}
+			else {
+				line->x2 = line->getX() + 1000.0f * cos(line->getAngle());
+				line->y2 = line->getY() + 1000.0f * sin(line->getAngle());
+			}
+		}
+	}
+
+
 
 
 
