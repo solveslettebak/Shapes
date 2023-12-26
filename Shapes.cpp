@@ -1,15 +1,7 @@
 // TODO: 
-// DONE - shapes trenger koordinater relativt til cetroid, i tillegg til world coordinates. Tror jeg.
-// DONE - AI: follow user
-// DONE - Line on triangle collision detection. Gjenstår å finne nærmeste punkt på triangel, og returnere det.
-// DONE - Line collision: Må oppdatere line-shape, slik at draw blir til riktig punkt
 // - I stedet for å lage laser-linje for hver frame, og slette den igjen, kan jeg lage en AI subclass. .. men får samme problem, med å slette den igjen.
 // - User control burde også være en AI subclass. Dermed trenger AI user input, og jeg kan bruke det andre steder også.
-// DONE - Collision detect: return hit object
-// DONE - Damage. Hvordan?
 // - Types of forces. How to implement? force() to return enum, and then apply force in World class? Point source, field (gravity), friction (air resistance), .. more?
-// GAVE UP - Time for code cleanup and separate into files and classes.
-// DONE - Move shape color into Shape class, not struct.
 // - Collisions: Triangle-Rect, Line-circle, point-triangle, point-rect, point-circle, circle-circle, circle-rect, rect-rect
 // - Gyro
 // - Ninja rope
@@ -24,7 +16,9 @@
 
 // Notes for next version:
 // - Obj should come back, and have a shape. Shape refers back to Obj with an owner field. Not sure why I didn't do that in the end..
-// - Need to figure out how objects should be talking to each other. And structure everything neatly from the start.
+// - Need to figure out how objects should be talking to each other. And structure everything neatly from the start. Probably all objects just talk to World, somehow.
+// - Currently lines are created and killed every frame. Line is equivalent of object in my current setup.
+// - draw up some oop diagrams, and figure out how to structure everything.
 
 #pragma once
 #define OLC_PGE_APPLICATION
@@ -59,6 +53,13 @@ class triggerLaser : public ITrigger {
 public:
 	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
 		victim->damage(0.1f);
+	};
+};
+
+class triggerAim : public ITrigger {
+public:
+	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
+		
 	};
 };
 
@@ -102,8 +103,8 @@ public:
 		if (!magnetic) return false;
 		px = self->getX();
 		py = self->getY();
-		magnitude = 0.01f;
-		radius_of_influence = 100.0f;
+		magnitude = 0.02f;
+		radius_of_influence = 200.0f;
 		ftype = eMagnetic;
 		return true;
 	}
@@ -116,12 +117,11 @@ protected:
 class AI_follow_user : public AI {
 public:
 	AI_follow_user(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_;  external = external_; }
-
 	void update(float tElapsedTime) override {
 		float dx = external->getX() - self->getX();
 		float dy = external->getY() - self->getY();
 		float angle = atan2(dy, dx);
-		self->setAngle(angle + 3.14f);
+		self->setAngle(angle);
 	}
 };
 
@@ -214,10 +214,11 @@ public:
 
 		// ----- BEHAVIOUR ----- //
 
-		if (GetKey(olc::Key::SPACE).bHeld) {
+		if (GetKey(olc::Key::B).bHeld) {
 			shared_ptr<Line> laser;
 			laser = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
 			laser->setAngle(user_controlled_shape->getAngle());
+			laser->setColor(olc::RED);
 
 			shared_ptr<ITrigger> trigger = make_shared<triggerLaser>();
 			sharedPtrTriggers.push_back(trigger);
@@ -227,10 +228,24 @@ public:
 
 		}
 
-		if (GetKey(olc::Key::SPACE).bPressed) {
+		if (GetKey(olc::Key::S).bHeld) { // this should be an object, and only have a shape when S is held. otherwise keep track of enemy using the appropriate AI.
+			shared_ptr<Line> aim;
+			aim = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
+			aim->setAngle(user_controlled_shape->getAngle());
+			aim->setColor(olc::BLUE);
+
+			shared_ptr<ITrigger> trigger = make_shared<triggerAim>();
+			sharedPtrTriggers.push_back(trigger);
+			aim->setTrigger(trigger);
+
+			sharedPtrLines.push_back(aim);
+		}
+
+		if (GetKey(olc::Key::A).bPressed) {
 			shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::GREEN);
 			sharedPtrCircles.push_back(circle);
-			circle->addForce(15.0f, user_controlled_shape->getAngle());
+			circle->addForce(4.0f, user_controlled_shape->getAngle());
+			circle->setMass(5.0f);
 
 			shared_ptr<IHull> hull = make_shared<playerHull>(circle);
 			sharedPtrHulls.push_back(hull);
@@ -242,11 +257,11 @@ public:
 			circle->setAI(ai);
 		}
 
-		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(-0.002f); }
+		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(-0.003f); }
 		if (GetKey(olc::Key::COMMA).bHeld) { user_controlled_shape->rotate(-0.0005f); }
 		if (GetKey(olc::Key::PERIOD).bHeld) { user_controlled_shape->rotate(0.0005f); }
-		if (GetKey(olc::Key::RIGHT).bHeld) { user_controlled_shape->rotate( 0.002f); }
-		if (GetKey(olc::Key::UP).bHeld) { user_controlled_shape->addForce(0.008f, user_controlled_shape->getAngle()); }
+		if (GetKey(olc::Key::RIGHT).bHeld) { user_controlled_shape->rotate( 0.003f); }
+		if (GetKey(olc::Key::UP).bHeld) { user_controlled_shape->addForce(10.0f * fElapsedTime, user_controlled_shape->getAngle()); }
 
 		for (auto& each : sharedPtrAI) { 
 			if (each->getDestroyFlag()) {
@@ -264,7 +279,7 @@ public:
 
 		for (auto& each : sharedPtrTriangles)  { DrawTriangle(each->worldCoordinates(), each->getColor()); }
 		for (auto& each : sharedPtrRectangles) { FillRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor()); }
-		for (auto& each : sharedPtrLines)      { DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), olc::YELLOW); }
+		for (auto& each : sharedPtrLines)      { DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); }
 		for (auto& each : sharedPtrCircles)    { 
 			FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor()); 
 			//DrawCircle(int(each->getX()), int(each->getY()), 40, olc::WHITE);
@@ -278,6 +293,7 @@ public:
 			ForceType ftype;
 			if (each->force(px, py, magnitude, radius_of_influence, ftype)) {
 				for (auto& triangle : sharedPtrTriangles) { // TODO: this may get tricky when i include all objects, not just triangles. Counting same twice etc.
+					if (each->getSelf() == triangle) continue; // don't apply force on self
 					switch (ftype) {
 						case eMagnetic: {
 							float dx = px - (triangle->centroidX() + triangle->getX());
@@ -286,6 +302,22 @@ public:
 							if (distance < radius_of_influence) {
 								float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
 								triangle->addForce(force, atan2(dy, dx));
+								each->getSelf()->addForce(-force, atan2(dy, dx));
+							}
+							break;
+						}
+					}
+				}
+				for (auto& circle : sharedPtrCircles) {
+					if (each->getSelf() == circle) continue;
+					switch (ftype) {
+					case eMagnetic: {
+							float dx = px - circle->getX();
+							float dy = py - circle->getY();
+							float distance = sqrt(dx * dx + dy * dy);
+							if (distance < radius_of_influence) {
+								float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
+								circle->addForce(force, atan2(dy, dx));
 								each->getSelf()->addForce(-force, atan2(dy, dx));
 							}
 							break;
@@ -341,8 +373,14 @@ public:
 #include "collisions.h"
 
 
-
+	// static collision detection. only true/false, does not move objects. yet.
 	void checkCollisions() {
+		// ----- Circles ----- //
+		for (auto& circle : sharedPtrCircles) {
+
+		}
+
+		// ----- Lines ----- //
 		for (auto& line : sharedPtrLines) {
 			float minPx, minPy, px, py;
 			float minDistance = 1000000.0f;
@@ -403,19 +441,13 @@ public:
 			}
 		}
 	}
-
-
-
-
-
-
 };
 
 
 
 int main() {
 	World world;
-	if (world.Construct(500, 400, 1, 1))
+	if (world.Construct(800, 600, 1, 1))
 		world.Start();
 	return 0;
 }

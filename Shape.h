@@ -38,10 +38,11 @@ public:
 	bool getKillFlag() { return killFlag; }
 	void setCanBeDamaged(bool canBeDamaged_) { canBeDamaged = canBeDamaged_; }
 	void setHull(shared_ptr<IHull> hull_) { hull = hull_; }
+	void setMass(float mass_) { mass = mass_; }
+	float getMass() { return mass; }
 
 	void clearForce() { forceX = 0.0f; forceY = 0.0f; }
 	void addForce(float force, float angle_) { forceX += force * cos(angle_); forceY += force * sin(angle_); }
-	//void applyForce() { vx += forceX / mass; vy += forceY / mass; x += vx; y += vy; clearForce(); };
 	void applyForce() { ax = forceX / mass; ay = forceY / mass; vx += ax; vy += ay; clearForce(); };
 
 	void setColor(olc::Pixel color_) { color = color_; }

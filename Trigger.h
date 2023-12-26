@@ -25,3 +25,6 @@ class TriggerLaser : public ITrigger {
 	void trigger(Obj owner, vector<Obj*> victims) {};
 };
 */
+
+
+
