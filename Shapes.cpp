@@ -219,12 +219,21 @@ public:
 		return circle;
 	}
 
+	std::shared_ptr<Shape> createBall() {
+		shared_ptr<Circle> circle = make_shared<Circle>(rand() % ScreenWidth(), rand() % ScreenHeight(), rand() % 10 + 5.0f, olc::GREY);
+		sharedPtrCircles.push_back(circle);
+		return circle;
+	}
+
 	bool OnUserCreate() override {
 
 		user_controlled_shape = createPlayer();
 
 		for (int i = 0; i < 20; i++)
 			addRandomEnemy();
+
+		for (int i = 0; i < 20; i++)
+			createBall();
 
 		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, ScreenHeight()-20, olc::WHITE);
 		shared_ptr<Rect> rightWall = make_shared<Rect>(ScreenWidth()-15, 10, 5, ScreenHeight()-20, olc::WHITE);

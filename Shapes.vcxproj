@@ -128,12 +128,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="collisions.h" />
-    <ClCompile Include="Force.cpp" />
     <ClCompile Include="Shapes.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AI.h" />
-    <ClInclude Include="Force.h" />
     <ClInclude Include="Hull.h" />
     <ClInclude Include="Shape.h" />
     <ClInclude Include="Trigger.h" />
