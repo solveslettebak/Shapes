@@ -23,9 +23,7 @@ public:
 		return angle;
 	}
 	void setAngle(float angle_) { angle = angle_; }
-	float getX() {
-		return x;
-	}
+	float getX() { return x; }
 	float getY() { return y; }
 	void setX(float x_) { x = x_; }
 	void setY(float y_) { y = y_; }
@@ -38,8 +36,12 @@ public:
 	bool getKillFlag() { return killFlag; }
 	void setCanBeDamaged(bool canBeDamaged_) { canBeDamaged = canBeDamaged_; }
 	void setHull(shared_ptr<IHull> hull_) { hull = hull_; }
+	shared_ptr<IHull> getHull() { return hull; }
 	void setMass(float mass_) { mass = mass_; }
 	float getMass() { return mass; }
+	void reverse() { vx = -vx; vy = -vy; }
+	void stepBack(float fElapsedTime) { x -= vx * fElapsedTime; y -= vy * fElapsedTime; }
+	bool getCanCollide() { return canCollide; }
 
 	void clearForce() { forceX = 0.0f; forceY = 0.0f; }
 	void addForce(float force, float angle_) { forceX += force * cos(angle_); forceY += force * sin(angle_); }

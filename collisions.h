@@ -1,6 +1,7 @@
 #pragma once
 #include "structs.h"
 #include <memory>
+#include <vector>
 
 
 bool LineLineCollision(sLine A, sLine B, float& px, float& py) {
@@ -100,15 +101,27 @@ bool LineRectCollision(sLine ln, sRect rect, float& px, float& py) {
 
 
 
-bool TriangleRectCollision(sTriangle tr, sRect rect) {
+bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
 	sLine trA = sLine{ tr.x1, tr.y1, tr.x2, tr.y2 };
 	sLine trB = sLine{ tr.x2, tr.y2, tr.x3, tr.y3 };
 	sLine trC = sLine{ tr.x3, tr.y3, tr.x1, tr.y1 };
+
+	std::vector<sLine> trLines = { trA, trB, trC };
 
 	sLine rectA = sLine{ rect.x, rect.y, rect.x + rect.w, rect.y };
 	sLine rectB = sLine{ rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + rect.h };
 	sLine rectC = sLine{ rect.x + rect.w, rect.y + rect.h, rect.x, rect.y + rect.h };
 	sLine rectD = sLine{ rect.x, rect.y + rect.h, rect.x, rect.y };
+
+	std::vector<sLine> rectLines = { rectA, rectB, rectC, rectD };
+
+	for (auto trLine : trLines) {
+		for (auto rectLine : rectLines) {
+			if (LineLineCollision(trLine, rectLine, px, py)) {
+				return true;
+			}
+		}
+	}
 
 	return false;
 }

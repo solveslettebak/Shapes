@@ -5,4 +5,6 @@ struct sCircle { float x, y, r; };
 struct sRect { float x, y, w, h; };
 struct sLine { float x1, y1, x2, y2; };
 
-enum ForceType { eGravity, eMagnetic, eFriction };
+//struct sDecorativeDot { float x, y, elapsedTime, lifetime; olc::Pixel color; };
+
+enum ForceType { eGravity, eMagnetic, eFriction, eExplosion };
