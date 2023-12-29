@@ -42,16 +42,28 @@ public:
 	void reverse() { vx = -vx; vy = -vy; }
 	void stepBack(float fElapsedTime) { x -= vx * fElapsedTime; y -= vy * fElapsedTime; }
 	bool getCanCollide() { return canCollide; }
+	void setCanCollide(bool canCollide_) { canCollide = canCollide_; }
+	bool getFilled() { return filled; }
+	void setFilled(bool filled_) { filled = filled_; }
+	void setStatic(bool isStatic_) { isStatic = isStatic_; }
+
+
 
 	void clearForce() { forceX = 0.0f; forceY = 0.0f; }
 	void addForce(float force, float angle_) { forceX += force * cos(angle_); forceY += force * sin(angle_); }
 	void applyForce() { ax = forceX / mass; ay = forceY / mass; vx += ax; vy += ay; clearForce(); };
+	void setVelocity(float vx_, float vy_) { vx = vx_; vy = vy_; }
+	float getVelocityX() { return vx; }
+	float getVelocityY() { return vy; }
 
 	void setColor(olc::Pixel color_) { color = color_; }
 	olc::Pixel getColor() { return color; }
 	shared_ptr<AI> getAI() { return ai; }
 
-	void updatePosition() { x += vx; y += vy; }
+	void updatePosition() { 
+		if (isStatic) { vx = 0.0f; vy = 0.0f; return;}
+		else { x += vx; y += vy; }
+	}
 	float getMotionAngle() {
 		float speed = sqrt(vx * vx + vy * vy);
 		if (speed < 0.01f) return angle;
@@ -69,10 +81,11 @@ protected:
 	float angle; // radians
 	float forceX = 0.0f;
 	float forceY = 0.0f;
-	bool isStatic;
+	bool isStatic = false;
 	bool canCollide;
 	bool killFlag = false;
 	bool canBeDamaged = false;
+	bool filled = true;
 	float x, y; // world coordinates
 
 	shared_ptr<ITrigger> varTrigger;
@@ -128,6 +141,8 @@ public:
 	float centroidY() override { return 0.0f; }
 	float area() override { return 3.14f * r * r; }
 	void rotate(float angle_) override { angle += angle_; }
+	sCircle getStruct() { return sCircle{ x, y, r }; }
+	void setRadius(float radius) { r = radius; }
 };
 
 

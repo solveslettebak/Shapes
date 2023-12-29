@@ -132,6 +132,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AI.h" />
+    <ClInclude Include="constants.h" />
     <ClInclude Include="Hull.h" />
     <ClInclude Include="Shape.h" />
     <ClInclude Include="Trigger.h" />

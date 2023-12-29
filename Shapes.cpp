@@ -30,6 +30,8 @@
 #include "AI.h"
 #include "Shape.h"
 
+#include "constants.h"
+
 /*
 Effects:
 - gravity / motion. Different types: force relative to point, relative to horizontal/vertical, and probably more..
@@ -76,30 +78,48 @@ public:
 
 
 class AI_magbomb : public AI {
+protected:
+	//enum State { eCantCollide, eArmed, eExplode } state = eInitialDelay; // consider doing this as a state machine
+
 public:
 	AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
 	// should explode when it collides with something
 	// pushes all objects around it away when it hits something (apply small damage to them as well, depending on distance)
 
+	void setup() override {
+		self->setMass(5.0f);
+		self->setCanBeDamaged(true);
+		self->setCanCollide(false);
+		self->setColor(olc::GREEN);
+	}
+
 	void update(float tElapsedTime) override {
 		timePassed += tElapsedTime;
-		if ((timePassed > 1.0f) && (!magnetic)) { // called once when initial delay is over
+
+		if ((timePassed > 0.2f) && (timePassed < 0.3f)) self->setCanCollide(true); // can collide after 0.2 seconds (to avoid colliding with player)
+		else if ((timePassed > MB_TIME_TO_ARM) && (!magnetic)) { // called once when initial delay is over
 			magnetic = true;
 			self->setColor(olc::YELLOW);
-		} else if ((timePassed > 0.5f) && (timePassed < 1.5f)) {
-			self->addForce(-0.01f, self->getMotionAngle()); // slow down
-		}
-		else if (timePassed > 2.0f) {
-			//self->setKillFlag(); // replace with explosion
+		} 
+
+		if ((timePassed > 0.5f) && (timePassed < 1.5f)) self->addForce(-0.01f, self->getMotionAngle()); // slow down 
+		else if ((timePassed > MB_LIFETIME) && (timePassed < MB_LIFETIME + 0.5f)) {
 			explode = true;
+
+			// Change shape to an expanding circle.
+			self->setFilled(false);
+			dynamic_cast<Circle*>(self.get())->setStatic(true);
+			dynamic_cast<Circle*>(self.get())->setCanCollide(false);
+			dynamic_cast<Circle*>(self.get())->setRadius(200.0f * (timePassed - 5.0f)*2);
+		}
+		else if (timePassed > MB_LIFETIME + 0.5f) {
+			self->setKillFlag();
+			//this->setDestroyFlag(true); // TODO: check if this is necessary. How? Print out number of AI's every frame or something.
 		}
 	}
 
 	bool force(float &px, float &py, float &magnitude, float &radius_of_influence, ForceType &ftype) override {
-		if (hasExploded) {
-			self->setKillFlag();
-			return false;
-		}
+		if (hasExploded) { return false; }
 
 		if (explode && !hasExploded) {
 			hasExploded = true;
@@ -148,12 +168,11 @@ public:
 		self->setAngle(external->getAngle());
 		self->setX(external->getX());
 		self->setY(external->getY());
-
-		// can do this if i pass a reference to World maybe.
-		//if (GetKey(olc::Key::SPACE).bReleased) {
-			// kill self
-		//}
 	}
+
+	void trigger(shared_ptr<Shape> other_object) override { // TODO: need fElapsedTime here also
+		other_object->damage(0.1f);
+	};
 
 };
 
@@ -178,17 +197,17 @@ public:
 	World() { sAppName = "World"; }
 
 	void addRandomEnemy() {
-		shared_ptr<Triangle> shape2 = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
-		sharedPtrTriangles.push_back(shape2);
+		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
+		sharedPtrTriangles.push_back(shape);
 
-		shared_ptr<AI> enemy_AI = make_shared<AI_follow_user>(shape2, user_controlled_shape);
+		shared_ptr<AI> enemy_AI = make_shared<AI_follow_user>(shape, user_controlled_shape);
 		sharedPtrAI.push_back(enemy_AI);
-		shape2->setAI(enemy_AI); // not used yet
+		//shape->setAI(enemy_AI); // not used yet
 
-		shared_ptr<IHull> hull = make_shared<playerHull>(shape2);
+		shared_ptr<IHull> hull = make_shared<playerHull>(shape);
 		sharedPtrHulls.push_back(hull);
-		shape2->setHull(hull);
-		shape2->setCanBeDamaged(true);
+		shape->setHull(hull);
+		shape->setCanBeDamaged(true);
 
 	}
 
@@ -204,18 +223,19 @@ public:
 		shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::GREEN);
 		sharedPtrCircles.push_back(circle);
 		circle->addForce(4.0f, user_controlled_shape->getAngle());
-		circle->setMass(5.0f);
+		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
+		//circle->setMass(5.0f);
+		//circle->setCanCollide(false);
 
 		shared_ptr<IHull> hull = make_shared<playerHull>(circle);
 		sharedPtrHulls.push_back(hull);
 		circle->setHull(hull);
 		circle->getHull()->setArmor(1.0f);
-		//circle->setMass(10.0f);
-		circle->setCanBeDamaged(true);
 
 		shared_ptr<AI> ai = make_shared<AI_magbomb>(circle, nullptr);
 		sharedPtrAI.push_back(ai);
 		circle->setAI(ai);
+		ai->setup();
 		return circle;
 	}
 
@@ -225,15 +245,32 @@ public:
 		return circle;
 	}
 
+	std::shared_ptr<Shape> createLaser() {
+		shared_ptr<Line> laser;
+		laser = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
+		laser->setAngle(user_controlled_shape->getAngle());
+		laser->setColor(olc::RED);
+
+		shared_ptr<ITrigger> trigger = make_shared<triggerLaser>();
+		sharedPtrTriggers.push_back(trigger);
+		laser->setTrigger(trigger);
+
+		sharedPtrLines.push_back(laser);
+
+		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, user_controlled_shape);
+		sharedPtrAI.push_back(ai);
+		laser->setAI(ai);
+
+		return laser;
+	}
+
 	bool OnUserCreate() override {
 
 		user_controlled_shape = createPlayer();
 
-		for (int i = 0; i < 20; i++)
-			addRandomEnemy();
+		for (int i = 0; i < 20; i++) addRandomEnemy();
+		for (int i = 0; i < 40; i++) createBall();
 
-		for (int i = 0; i < 20; i++)
-			createBall();
 
 		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, ScreenHeight()-20, olc::WHITE);
 		shared_ptr<Rect> rightWall = make_shared<Rect>(ScreenWidth()-15, 10, 5, ScreenHeight()-20, olc::WHITE);
@@ -254,18 +291,7 @@ public:
 
 		// ----- BEHAVIOUR ----- //
 
-		if (GetKey(olc::Key::B).bHeld) {
-			shared_ptr<Line> laser;
-			laser = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
-			laser->setAngle(user_controlled_shape->getAngle());
-			laser->setColor(olc::RED);
-
-			shared_ptr<ITrigger> trigger = make_shared<triggerLaser>();
-			sharedPtrTriggers.push_back(trigger);
-			laser->setTrigger(trigger);
-
-			sharedPtrLines.push_back(laser);
-		}
+		if (GetKey(olc::Key::B).bHeld) createLaser();
 
 		if (GetKey(olc::Key::S).bHeld) { // this should be an object, and only have a shape when S is held. otherwise keep track of enemy using the appropriate AI.
 			shared_ptr<Line> aim;
@@ -281,11 +307,11 @@ public:
 		}
 
 		if (GetKey(olc::Key::A).bPressed) createMagbomb();
-		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(-0.003f); }
-		if (GetKey(olc::Key::PGUP).bHeld) { user_controlled_shape->rotate(-0.0005f); }
-		if (GetKey(olc::Key::PGDN).bHeld) { user_controlled_shape->rotate(0.0005f); }
-		if (GetKey(olc::Key::RIGHT).bHeld) { user_controlled_shape->rotate( 0.003f); }
-		if (GetKey(olc::Key::UP).bHeld) { user_controlled_shape->addForce(10.0f * fElapsedTime, user_controlled_shape->getAngle()); }
+		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
+		if (GetKey(olc::Key::PGUP).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }
+		if (GetKey(olc::Key::PGDN).bHeld)  { user_controlled_shape->rotate(  SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }
+		if (GetKey(olc::Key::RIGHT).bHeld) { user_controlled_shape->rotate(  SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
+		if (GetKey(olc::Key::UP).bHeld)    { user_controlled_shape->addForce(SHIP_THRUST * fElapsedTime, user_controlled_shape->getAngle()); }
 
 		for (auto& each : sharedPtrAI) { 
 			if (each->getDestroyFlag()) {
@@ -302,17 +328,34 @@ public:
 		// ---- DRAW ----- //
 
 		for (auto& each : sharedPtrTriangles)  { 
-			DrawTriangle(each->worldCoordinates(), each->getColor()); 
+			if (each->getFilled()) 
+				DrawTriangle(each->worldCoordinates(), each->getColor()); 
+			else {
+				sTriangle shape = each->worldCoordinates();
+				DrawLine(int(shape.x1), int(shape.y1), int(shape.x2), int(shape.y2), each->getColor());
+				DrawLine(int(shape.x2), int(shape.y2), int(shape.x3), int(shape.y3), each->getColor());
+				DrawLine(int(shape.x3), int(shape.y3), int(shape.x1), int(shape.y1), each->getColor());
+			}
 			if (each->getHull()) { // TODO: add "display health" property to shape.
 				float health = each->getHull()->getHealth();
 				FillRect(int(each->getX()) - 15, int(each->getY()) - 15, int(30.0f * health), 5, olc::Pixel(255 * (1.0f - health), 255 * health, 0));
 			}
 		}
-		for (auto& each : sharedPtrRectangles) { FillRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor()); }
+		for (auto& each : sharedPtrRectangles) { 
+			if (each->getFilled()) 
+				FillRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor()); 
+			else 
+				DrawRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor());
+		}
 		for (auto& each : sharedPtrLines)      { DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); }
 		for (auto& each : sharedPtrCircles)    { 
-			FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor()); 
-			DrawCircle(int(each->getX()), int(each->getY()), 200, olc::Pixel(50, 50, 155));
+			if (each->getFilled())
+				FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor()); 
+			else 
+				DrawCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());	
+			
+			//DrawCircle(int(each->getX()), int(each->getY()), 200, olc::Pixel(50, 50, 155));
+			
 		}
 
 		// ----- EFFECTS ----- //
@@ -369,12 +412,14 @@ public:
 		// Shapes
 		for (auto& each : sharedPtrTriangles) {
 			if (each->getKillFlag()) {
-				each->getAI()->destroy(); // either check that an AI exists, or make all shapes have a dummy AI by default.
+				if (each->getAI())
+					each->getAI()->destroy(); // either check that an AI exists, or make all shapes have a dummy AI by default.
 				sharedPtrTriangles.erase(std::remove(sharedPtrTriangles.begin(), sharedPtrTriangles.end(), each), sharedPtrTriangles.end());
 				break;}} // bad. should be able to remove many. see https://stackoverflow.com/questions/3487717/erasing-multiple-objects-from-a-stdvector
 		for (auto& each : sharedPtrCircles) {
 			if (each->getKillFlag()) {
-				each->getAI()->destroy();
+				if (each->getAI())
+					each->getAI()->destroy();
 				sharedPtrCircles.erase(std::remove(sharedPtrCircles.begin(), sharedPtrCircles.end(), each), sharedPtrCircles.end());
 				break;}}
 
@@ -401,8 +446,6 @@ public:
 
 	void checkCollisions2(float fElapsedTime) {
 		vector<shared_ptr<Shape>> shapes;
-
-		// add a check here to figure out if shape can collide at all / has any effect if it collides
 
 		// lines first, because they need to be treated differently
 		for (auto& line : sharedPtrLines) { shapes.push_back(line); }
@@ -431,7 +474,7 @@ public:
 					else if (std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[j])) {
 						// do triangle-rectangle collision
 						if (TriangleRectCollision(triangle->worldCoordinates(), rectangle->getStruct(), px, py)) {
-							cout << "collision" << endl;
+							//cout << "collision" << endl;
 							//triangle->addForce(-10.0f, triangle->getAngle());
 							//triangle->setKineticEnergy(triangle->getKineticEnergy(), triangle->getDirection() + 3.14f);
 							triangle->stepBack(fElapsedTime); // move out of the wall
@@ -443,6 +486,13 @@ public:
 					}
 					else if (std::shared_ptr<Circle> circle = std::dynamic_pointer_cast<Circle>(shapes[j])) {
 						// do triangle-circle collision
+						if (CircleTriangleCollision(circle->getStruct(), triangle->worldCoordinates())) {
+
+							circle->stepBack(fElapsedTime); // move out of the wall
+							circle->reverse(); // and bounce
+							triangle->stepBack(fElapsedTime); // move out of the wall
+							triangle->reverse(); // and bounce
+						}	
 					}
 					// skip lines here.
 				}
@@ -455,6 +505,12 @@ public:
 					}
 					else if (std::shared_ptr<Circle> circle = std::dynamic_pointer_cast<Circle>(shapes[j])) {
 						// do rectangle-circle collision
+						if (CircleRectangleCollision(circle->getStruct(), rectangle->getStruct())) {
+							// Need to resolve collision properly, check if objects are static, modify accordingly, and do dynamic effects also.
+							circle->stepBack(fElapsedTime); // move out of the wall
+							circle->reverse(); // and bounce
+
+						}
 					}
 				}
 				else if (circle) {
@@ -466,7 +522,45 @@ public:
 					}
 					else if (std::shared_ptr<Circle> circle2 = std::dynamic_pointer_cast<Circle>(shapes[j])) {
 						// do circle-circle collision
+						if (CircleCircleCollision(circle->getStruct(), circle2->getStruct())) {
+							// Static resolving of collision.
+							float distance = sqrtf((circle->getX() - circle2->getX()) * (circle->getX() - circle2->getX()) + (circle->getY() - circle2->getY()) * (circle->getY() - circle2->getY()));
+							float overlap = 0.5f * (distance - circle->r - circle2->r);
 
+							circle->setX(circle->getX() - overlap * (circle->getX() - circle2->getX()) / distance);
+							circle->setY(circle->getY() - overlap * (circle->getY() - circle2->getY()) / distance);
+
+							circle2->setX(circle2->getX() + overlap * (circle->getX() - circle2->getX()) / distance);
+							circle2->setY(circle2->getY() + overlap * (circle->getY() - circle2->getY()) / distance);
+
+							distance = sqrtf((circle->getX() - circle2->getX()) * (circle->getX() - circle2->getX()) + (circle->getY() - circle2->getY()) * (circle->getY() - circle2->getY()));
+
+							// Normal
+							float nx = (circle2->getX() - circle->getX()) / distance;
+							float ny = (circle2->getY() - circle->getY()) / distance;
+
+							// Tangent
+							float tx = -ny;
+							float ty = nx;
+
+							// Dot Product Tangent
+							float dpTan1 = circle->getVelocityX() * tx + circle->getVelocityY() * ty;
+							float dpTan2 = circle2->getVelocityX() * tx + circle2->getVelocityY() * ty;
+
+							// Dot Product Normal
+							float dpNorm1 = circle->getVelocityX() * nx + circle->getVelocityY() * ny;
+							float dpNorm2 = circle2->getVelocityX() * nx + circle2->getVelocityY() * ny;
+
+							// Conservation of momentum in 1D
+							float m1 = (dpNorm1 * (circle->getMass() - circle2->getMass()) + 2.0f * circle2->getMass() * dpNorm2) / (circle->getMass() + circle2->getMass());
+							float m2 = (dpNorm2 * (circle2->getMass() - circle->getMass()) + 2.0f * circle->getMass() * dpNorm1) / (circle->getMass() + circle2->getMass());
+
+							// Update ball velocities
+							circle->setVelocity(tx * dpTan1 + nx * m1, ty * dpTan1 + ny * m1);
+							circle2->setVelocity(tx * dpTan2 + nx * m2, ty * dpTan2 + ny * m2);
+
+
+						}
 					}
 				}
 				else if (line) {
@@ -517,10 +611,12 @@ public:
 			}
 
 			if (collision) {
-				DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
+				//DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
 				line->x2 = minPx;
 				line->y2 = minPy;
-				line->trigger(line, hitObject);
+				//line->trigger(line, hitObject);
+				if (line->getAI()) 
+					line->getAI()->trigger(hitObject);
 			}
 			else if (line) {
 				line->x2 = line->getX() + 1000.0f * cos(line->getAngle());
@@ -530,76 +626,6 @@ public:
 		}
 	}
 
-
-	// static collision detection. only true/false, does not move objects. yet.
-	void checkCollisions() {
-
-		// ----- Circles ----- //
-		for (auto& circle : sharedPtrCircles) {
-
-		}
-
-		// ----- Lines ----- //
-		for (auto& line : sharedPtrLines) {
-			float minPx, minPy, px, py;
-			float minDistance = 1000000.0f;
-			bool collision = false;
-			shared_ptr<Shape> hitObject;
-
-			for (auto& triangle : sharedPtrTriangles) {
-				if (triangle == user_controlled_shape) continue; // don't collide with self
-				if (LineTriangleCollision(line->getStruct(), triangle->worldCoordinates(), px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = triangle;
-					}
-				}
-			}
-
-			for (auto& rectangle : sharedPtrRectangles) {
-				if (rectangle == user_controlled_shape) continue; // don't collide with self
-				if (LineRectCollision(line->getStruct(), rectangle->getStruct(), px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = rectangle;
-					}
-				}
-			}
-
-			for (auto& circle : sharedPtrCircles) {
-				if (circle == user_controlled_shape) continue; // don't collide with self
-				if (LineCircleCollision(line->getStruct(), sCircle{ circle->getX(), circle->getY(), circle->r }, px, py)) {
-					float distance = sqrt((line->getX() - px) * (line->getX() - px) + (line->getY() - py) * (line->getY() - py));
-					if (distance < minDistance) {
-						collision = true;
-						minDistance = distance;
-						minPx = px;
-						minPy = py;
-						hitObject = circle;
-					}
-				}
-			}
-
-			if (collision) {
-				DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
-				line->x2 = minPx;
-				line->y2 = minPy;
-				line->trigger(line, hitObject);
-			}
-			else {
-				line->x2 = line->getX() + 1000.0f * cos(line->getAngle());
-				line->y2 = line->getY() + 1000.0f * sin(line->getAngle());
-			}
-		}
-	}
 };
 
 

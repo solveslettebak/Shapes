@@ -2,7 +2,7 @@
 #include "structs.h"
 #include <memory>
 #include <vector>
-
+#include <iostream>
 
 bool LineLineCollision(sLine A, sLine B, float& px, float& py) {
 	float x1 = A.x1;
@@ -24,7 +24,49 @@ bool LineLineCollision(sLine A, sLine B, float& px, float& py) {
 	return false;
 }
 
-bool LineCircleCollision(sLine ln, sCircle circle, float& px, float& py) {
+struct Point {
+	double x, y;
+};
+
+//bool doesIntersect(Point p1, Point p2, Point center, double radius) { 
+bool LineCircleCollision(sLine ln, sCircle circle, float & px, float & py) {
+	Point p1 = Point{ ln.x1, ln.y1 };
+	Point p2 = Point{ ln.x2, ln.y2 };
+	Point center = Point{ circle.x, circle.y };
+	// Calculate the squared distance between the circle center and the line segment
+	float lineLengthSq = (p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y);
+	float dotProduct = ((center.x - p1.x) * (p2.x - p1.x)) + ((center.y - p1.y) * (p2.y - p1.y));
+	float t = dotProduct / lineLengthSq;
+
+	// Find the closest point on the line segment to the circle center
+	Point closestPoint;
+	if (t < 0) {
+		closestPoint = p1;
+	}
+	else if (t > 1) {
+		closestPoint = p2;
+	}
+	else {
+		closestPoint.x = p1.x + t * (p2.x - p1.x);
+		closestPoint.y = p1.y + t * (p2.y - p1.y);
+	}
+
+	// Check if the closest point is inside the circle
+	float distanceSq = (closestPoint.x - center.x) * (closestPoint.x - center.x) +
+		(closestPoint.y - center.y) * (closestPoint.y - center.y);
+
+	if (distanceSq <= (circle.r * circle.r)) {
+		// Calculate the intersection point on the circle
+		//float d = sqrt(circle.r * circle.r - distanceSq);
+		//float factor = sqrt(lineLengthSq) / (2 * sqrt(lineLengthSq));
+		px = closestPoint.x;// +factor * (p2.y - p1.y) * d;
+		py = closestPoint.y;// -factor * (p2.x - p1.x) * d;
+		return true;
+	}
+	return false;
+}
+
+bool _LineCircleCollision(sLine ln, sCircle circle, float& px, float& py) {
 	float cx = circle.x;
 	float cy = circle.y;
 	float r = circle.r;
@@ -48,6 +90,7 @@ bool LineCircleCollision(sLine ln, sCircle circle, float& px, float& py) {
 	else if (det == 0) {
 		// One solution.
 		float t = -B / (2 * A);
+		if (t < 0) return false;
 		px = x1 + t * dx;
 		py = y1 + t * dy;
 		return true;
@@ -55,13 +98,80 @@ bool LineCircleCollision(sLine ln, sCircle circle, float& px, float& py) {
 	else {
 		// Two solutions.
 		float t = (-B + sqrt(det)) / (2 * A);
+		if (t < 0) return false;
 		px = x1 + t * dx;
 		py = y1 + t * dy;
 		return true;
 	}
 }
 
+bool CircleCircleCollision(sCircle c1, sCircle c2) { // , float& px, float& py
+	float x1 = c1.x;
+	float y1 = c1.y;
+	float r1 = c1.r;
+	float x2 = c2.x;
+	float y2 = c2.y;
+	float r2 = c2.r;
 
+	float dx = x2 - x1;
+	float dy = y2 - y1;
+	float d = sqrt(dx * dx + dy * dy);
+	if (d > r1 + r2) {
+		return false;
+	}
+/*	if (d < abs(r1 - r2)) {
+		return false;
+	}
+	if (d == 0 && r1 == r2) {
+		return false;
+	}
+
+	float a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+	float h = sqrt(r1 * r1 - a * a);
+	float x3 = x1 + a * (x2 - x1) / d;
+	float y3 = y1 + a * (y2 - y1) / d;
+	px = x3 + h * (y2 - y1) / d;
+	py = y3 - h * (x2 - x1) / d;*/
+	return true;
+}
+
+bool CircleTriangleCollision(sCircle c, sTriangle r) {
+	sLine trA = sLine{ r.x1, r.y1, r.x2, r.y2 };
+	sLine trB = sLine{ r.x2, r.y2, r.x3, r.y3 };
+	sLine trC = sLine{ r.x3, r.y3, r.x1, r.y1 };
+
+	std::vector<sLine> trLines = { trA, trB, trC };
+
+	int count = 0;
+	for (auto& trLine : trLines) {
+		count++;
+		float px, py;
+		if (LineCircleCollision(trLine, c, px, py)) {
+			//std::cout << "collision on line " << count << std::endl;
+			return true;
+		}
+	}
+	return false;
+}
+
+
+
+bool CircleRectangleCollision(sCircle c, sRect r) {
+	sLine rectA = sLine{ r.x, r.y, r.x + r.w, r.y };
+	sLine rectB = sLine{ r.x + r.w, r.y, r.x + r.w, r.y + r.h };
+	sLine rectC = sLine{ r.x + r.w, r.y + r.h, r.x, r.y + r.h };
+	sLine rectD = sLine{ r.x, r.y + r.h, r.x, r.y };
+
+	std::vector<sLine> rectLines = { rectA, rectB, rectC, rectD };
+
+	for (auto& rectLine : rectLines) {
+		float px, py;
+		if (LineCircleCollision(rectLine, c, px, py)) {
+			return true;
+		}
+	}
+	return false;
+}
 
 bool LineTriangleCollision(sLine ln, sTriangle tr, float& px, float& py) {
 	sLine trA = sLine{ tr.x1, tr.y1, tr.x2, tr.y2 };
@@ -99,8 +209,6 @@ bool LineRectCollision(sLine ln, sRect rect, float& px, float& py) {
 	return collision;
 }
 
-
-
 bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
 	sLine trA = sLine{ tr.x1, tr.y1, tr.x2, tr.y2 };
 	sLine trB = sLine{ tr.x2, tr.y2, tr.x3, tr.y3 };
@@ -127,9 +235,7 @@ bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
 }
 
 bool PointTriangleCollision(float x, float y, sTriangle tr) { return false;  }
+
 bool PointRectCollision(float x, float y, sRect rect) {
-	if (x > rect.x && x < rect.x + rect.w && y > rect.y && y < rect.y + rect.h)
-		return true;
-	else
-		return false;
+	return (x > rect.x && x < rect.x + rect.w && y > rect.y && y < rect.y + rect.h);
 }

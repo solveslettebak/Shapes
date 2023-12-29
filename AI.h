@@ -13,7 +13,11 @@ public:
 	virtual void update(float tElapsedTime) = 0;
 	virtual bool force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ForceType) { return false; }
 	virtual void destroy() { destroyFlag = true; }
+	virtual void setup() {} // called once at the beginning
+	virtual void trigger(shared_ptr<Shape> other_object) {} // called on collision
+
 	bool getDestroyFlag() { return destroyFlag; }
+	void setDestroyFlag(bool destroyFlag_) { destroyFlag = destroyFlag_; }
 	shared_ptr<Shape> getExternal() { return external; }
 	shared_ptr<Shape> getSelf() { return self; }
 protected:

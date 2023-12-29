@@ -9,6 +9,7 @@ class Shape;
 class IHull {
 public:
 	virtual void damage(float amount) = 0;
+	//virtual void damage(float shrapnel, float blast, float heat) = 0; // TODO: implement
 	//virtual void repair(float amount) = 0;
 	float getArmor();
 	float getMaxArmor();
