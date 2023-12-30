@@ -46,6 +46,8 @@ public:
 	bool getFilled() { return filled; }
 	void setFilled(bool filled_) { filled = filled_; }
 	void setStatic(bool isStatic_) { isStatic = isStatic_; }
+	bool getVisible() { return isVisible; }
+	void setVisible(bool isVisible_) { isVisible = isVisible_; }
 
 
 
@@ -86,13 +88,15 @@ protected:
 	bool killFlag = false;
 	bool canBeDamaged = false;
 	bool filled = true;
+	bool isVisible = true;
 	float x, y; // world coordinates
 
 	shared_ptr<ITrigger> varTrigger;
 	shared_ptr<IHull> hull;
 	shared_ptr<AI> ai;
 	olc::Pixel color;
-	// bool isColliding; // could do this, but keep a vector in World class instead. Only properties goes in objects.
+
+	
 };
 
 

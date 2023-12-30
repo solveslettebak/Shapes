@@ -25,7 +25,6 @@
 #include "olcPixelGameEngine.h"
 #include <memory>
 
-#include "Trigger.h"
 #include "Hull.h"
 #include "AI.h"
 #include "Shape.h"
@@ -50,7 +49,7 @@ using namespace std;
 class AI;
 class Shape;
 
-
+/*
 class triggerLaser : public ITrigger {
 public:
 	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
@@ -62,7 +61,7 @@ public:
 	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
 		
 	};
-};
+};*/
 class playerHull : public IHull {
 public:
 	playerHull(shared_ptr<Shape> owner_) { maxArmor = 100.0f; currentArmor = 100.0f; owner = owner_; }
@@ -106,7 +105,7 @@ public:
 		else if ((timePassed > MB_LIFETIME) && (timePassed < MB_LIFETIME + 0.5f)) {
 			explode = true;
 
-			// Change shape to an expanding circle.
+			// Change shape to an expanding circle. A hack until i figure out a good way to draw from the AI class.
 			self->setFilled(false);
 			dynamic_cast<Circle*>(self.get())->setStatic(true);
 			dynamic_cast<Circle*>(self.get())->setCanCollide(false);
@@ -170,9 +169,41 @@ public:
 		self->setY(external->getY());
 	}
 
-	void trigger(shared_ptr<Shape> other_object) override { // TODO: need fElapsedTime here also
-		other_object->damage(0.1f);
+	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override { // TODO: need fElapsedTime here also
+		other_object->damage(LASER_DAMAGE * fElapsedTime);
 	};
+
+};
+
+class AI_aim : public AI {
+protected:
+	bool locked = false;
+public:
+	AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
+
+	void update(float tElapsedTime) override {
+		if (!locked) {
+			self->setAngle(external->getAngle());
+			self->setX(external->getX());
+			self->setY(external->getY());
+		}
+		else {
+			// draw square around target.. if i only could.
+
+		}
+	}
+
+	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override { // TODO: need fElapsedTime here also
+		external = other_object;
+	};
+
+	// Aim specific functions
+
+	void key_released() {
+		self->setVisible(false);
+		self->setCanCollide(false);
+	}
+
 
 };
 
@@ -187,6 +218,8 @@ private:
 	vector<shared_ptr<Circle>> sharedPtrCircles;
 	
 	shared_ptr<Shape> user_controlled_shape;
+	shared_ptr<Line> user_controlled_laser; // kind of a hack..
+	shared_ptr<Line> user_controlled_aim; // kind of a hack..
 
 	vector<shared_ptr<AI>> sharedPtrAI;
 	vector<shared_ptr<ITrigger>> sharedPtrTriggers;
@@ -245,16 +278,11 @@ public:
 		return circle;
 	}
 
-	std::shared_ptr<Shape> createLaser() {
+	std::shared_ptr<Line> createLaser() {
 		shared_ptr<Line> laser;
 		laser = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
 		laser->setAngle(user_controlled_shape->getAngle());
 		laser->setColor(olc::RED);
-
-		shared_ptr<ITrigger> trigger = make_shared<triggerLaser>();
-		sharedPtrTriggers.push_back(trigger);
-		laser->setTrigger(trigger);
-
 		sharedPtrLines.push_back(laser);
 
 		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, user_controlled_shape);
@@ -262,6 +290,20 @@ public:
 		laser->setAI(ai);
 
 		return laser;
+	}
+
+	std::shared_ptr<Line> createAim() {
+		shared_ptr<Line> aim;
+		aim = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
+		aim->setAngle(user_controlled_shape->getAngle());
+		aim->setColor(olc::BLUE);
+		sharedPtrLines.push_back(aim);
+
+		shared_ptr<AI_aim> ai = make_shared<AI_aim>(aim, user_controlled_shape);
+		sharedPtrAI.push_back(ai);
+		aim->setAI(ai);
+
+		return aim;
 	}
 
 	bool OnUserCreate() override {
@@ -291,21 +333,12 @@ public:
 
 		// ----- BEHAVIOUR ----- //
 
-		if (GetKey(olc::Key::B).bHeld) createLaser();
+		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser();
+		if (GetKey(olc::Key::B).bReleased) user_controlled_laser->setKillFlag();
 
-		if (GetKey(olc::Key::S).bHeld) { // this should be an object, and only have a shape when S is held. otherwise keep track of enemy using the appropriate AI.
-			shared_ptr<Line> aim;
-			aim = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
-			aim->setAngle(user_controlled_shape->getAngle());
-			aim->setColor(olc::BLUE);
-
-			shared_ptr<ITrigger> trigger = make_shared<triggerAim>();
-			sharedPtrTriggers.push_back(trigger);
-			aim->setTrigger(trigger);
-
-			sharedPtrLines.push_back(aim);
-		}
-
+		if (GetKey(olc::Key::S).bPressed) user_controlled_aim = createAim();
+		if (GetKey(olc::Key::S).bReleased) dynamic_cast<AI_aim*>(user_controlled_aim->getAI().get())->key_released();
+		//dynamic_cast<Circle*>(self.get())->setStatic(true);
 		if (GetKey(olc::Key::A).bPressed) createMagbomb();
 		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
 		if (GetKey(olc::Key::PGUP).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }
@@ -347,7 +380,10 @@ public:
 			else 
 				DrawRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor());
 		}
-		for (auto& each : sharedPtrLines)      { DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); }
+		for (auto& each : sharedPtrLines) { 
+			if (each->getVisible())
+				DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); 
+		}
 		for (auto& each : sharedPtrCircles)    { 
 			if (each->getFilled())
 				FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor()); 
@@ -422,6 +458,12 @@ public:
 					each->getAI()->destroy();
 				sharedPtrCircles.erase(std::remove(sharedPtrCircles.begin(), sharedPtrCircles.end(), each), sharedPtrCircles.end());
 				break;}}
+		for (auto& each : sharedPtrLines) {
+			if (each->getKillFlag()) {
+				if (each->getAI())
+					each->getAI()->destroy();
+				sharedPtrLines.erase(std::remove(sharedPtrLines.begin(), sharedPtrLines.end(), each), sharedPtrLines.end());
+				break;}}
 
 		// AIs
 		for (auto& each : sharedPtrAI) {
@@ -434,7 +476,7 @@ public:
 		for (auto& shape : sharedPtrCircles) { shape->updatePosition();}
 		for (auto& shape : sharedPtrTriangles) { shape->updatePosition(); }
 
-		sharedPtrLines.clear();
+		//sharedPtrLines.clear();
 
 		return true;
 	}
@@ -443,6 +485,9 @@ public:
 
 
 #include "collisions.h"
+
+
+
 
 	void checkCollisions2(float fElapsedTime) {
 		vector<shared_ptr<Shape>> shapes;
@@ -460,7 +505,7 @@ public:
 			float minDistance = 1000000.0f;
 			bool collision = false;
 			shared_ptr<Shape> hitObject;
-			
+
 			std::shared_ptr<Line> line = std::dynamic_pointer_cast<Line>(shapes[i]);
 			std::shared_ptr<Triangle> triangle = std::dynamic_pointer_cast<Triangle>(shapes[i]);
 			std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[i]);
@@ -492,7 +537,7 @@ public:
 							circle->reverse(); // and bounce
 							triangle->stepBack(fElapsedTime); // move out of the wall
 							triangle->reverse(); // and bounce
-						}	
+						}
 					}
 					// skip lines here.
 				}
@@ -614,9 +659,8 @@ public:
 				//DrawCircle(minPx, minPy, 10.0f, olc::YELLOW);
 				line->x2 = minPx;
 				line->y2 = minPy;
-				//line->trigger(line, hitObject);
-				if (line->getAI()) 
-					line->getAI()->trigger(hitObject);
+				if (line->getAI())
+					line->getAI()->trigger(hitObject, fElapsedTime);
 			}
 			else if (line) {
 				line->x2 = line->getX() + 1000.0f * cos(line->getAngle());

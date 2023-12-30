@@ -239,3 +239,4 @@ bool PointTriangleCollision(float x, float y, sTriangle tr) { return false;  }
 bool PointRectCollision(float x, float y, sRect rect) {
 	return (x > rect.x && x < rect.x + rect.w && y > rect.y && y < rect.y + rect.h);
 }
+

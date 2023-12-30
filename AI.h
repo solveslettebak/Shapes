@@ -1,6 +1,7 @@
 #pragma once
 
 #include "structs.h"
+
 using namespace std;
 
 class Shape;
@@ -14,7 +15,7 @@ public:
 	virtual bool force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ForceType) { return false; }
 	virtual void destroy() { destroyFlag = true; }
 	virtual void setup() {} // called once at the beginning
-	virtual void trigger(shared_ptr<Shape> other_object) {} // called on collision
+	virtual void trigger(shared_ptr<Shape> other_object, float fElapsedTime) {} // called on collision
 
 	bool getDestroyFlag() { return destroyFlag; }
 	void setDestroyFlag(bool destroyFlag_) { destroyFlag = destroyFlag_; }
@@ -23,4 +24,8 @@ public:
 protected:
 	shared_ptr<Shape> self, external;
 	bool destroyFlag = false;
+
+	void* world; // Hack. Points to world object.
 };
+
+
