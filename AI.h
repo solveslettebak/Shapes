@@ -34,16 +34,33 @@ protected:
 	shared_ptr<World> world;
 };
 
-
+class AI_laser : public AI {
+public:
+	AI_laser(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
+	void update(float tElapsedTime) override;
+	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override;
+};
 
 class AI_aim : public AI {
 protected:
 	bool locked = false;
 	shared_ptr<Shape> locked_on_object;
-
 public:
 	AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
 	void key_released();
 	virtual void trigger(shared_ptr<Shape> other_object, float fElapsedTime);
 	virtual void update(float fElapsedTime);
+};
+
+class AI_ninjarope : public AI {
+protected:
+	bool locked = false;
+	shared_ptr<Shape> locked_on_object;
+	float timePassed = 0.0f;
+public:
+	AI_ninjarope(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
+	void setup() override;
+	void update(float tElapsedTime) override;
+	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override;
+	bool force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ForceType) override;
 };

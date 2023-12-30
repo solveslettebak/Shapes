@@ -1,12 +1,10 @@
 // TODO: 
-// - I stedet for å lage laser-linje for hver frame, og slette den igjen, kan jeg lage en AI subclass. .. men får samme problem, med å slette den igjen.
-// - User control burde også være en AI subclass. Dermed trenger AI user input, og jeg kan bruke det andre steder også.
-// - Types of forces. How to implement? force() to return enum, and then apply force in World class? Point source, field (gravity), friction (air resistance), .. more?
-// - Collisions: Triangle-Rect, Line-circle, point-triangle, point-rect, point-circle, circle-circle, circle-rect, rect-rect
-// - Gyro
-// - Ninja rope
+// - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
+// - Test object with gravity as a force, cover the whole world.
+// - Moving world
+// - Starry background
+// - light/shadow
 // - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
-// - Really do need to figure out about calling stuff. Otherwise this project is dead.
 // - may need to redesign a bit so everything is handled in World class, and references to this are sent everywhere, or even just be global.
 // 
 // - AI: rename to "controller" maybe?
@@ -17,7 +15,6 @@
 // Notes for next version:
 // - Obj should come back, and have a shape. Shape refers back to Obj with an owner field. Not sure why I didn't do that in the end..
 // - Need to figure out how objects should be talking to each other. And structure everything neatly from the start. Probably all objects just talk to World, somehow.
-// - Currently lines are created and killed every frame. Line is equivalent of object in my current setup.
 // - draw up some oop diagrams, and figure out how to structure everything.
 
 #pragma once
@@ -36,7 +33,6 @@ Effects:
 - gravity / motion. Different types: force relative to point, relative to horizontal/vertical, and probably more..
 - friction (air resistance)
 - damage (later: heat, piercing, explosion, etc)
-- how to fit in gyro/aim here? in player: Laser l; if l.collide .. ?? yeah must hard code that anyway. Can put a variable for that specifically, and a test.
 
 */
 
@@ -65,8 +61,6 @@ public:
 
 
 class AI_magbomb : public AI {
-protected:
-	//enum State { eCantCollide, eArmed, eExplode } state = eInitialDelay; // consider doing this as a state machine
 
 public:
 	AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
@@ -95,9 +89,9 @@ public:
 
 			// Change shape to an expanding circle. A hack until i figure out a good way to draw from the AI class.
 			self->setFilled(false);
-			dynamic_cast<Circle*>(self.get())->setStatic(true);
-			dynamic_cast<Circle*>(self.get())->setCanCollide(false);
-			dynamic_cast<Circle*>(self.get())->setRadius(200.0f * (timePassed - 5.0f)*2);
+			self->setStatic(true);
+			self->setCanCollide(false);
+			dynamic_cast<Circle*>(self.get())->setRadius(200.0f * (timePassed - MB_LIFETIME)*2);
 		}
 		else if (timePassed > MB_LIFETIME + 0.5f) {
 			self->setKillFlag();
@@ -133,6 +127,9 @@ protected:
 	bool magnetic = false;
 	bool hasExploded = false;
 	bool explode = false;
+
+	//enum State { eCantCollide, eArmed, eExplode } state = eInitialDelay; // consider doing this as a state machine
+
 };
 
 
@@ -145,22 +142,6 @@ public:
 		float angle = atan2(dy, dx);
 		self->setAngle(angle);
 	}
-};
-
-class AI_laser : public AI {
-public:
-	AI_laser(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
-
-	void update(float tElapsedTime) override {
-		self->setAngle(external->getAngle());
-		self->setX(external->getX());
-		self->setY(external->getY());
-	}
-
-	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override { // TODO: need fElapsedTime here also
-		other_object->damage(LASER_DAMAGE * fElapsedTime);
-	};
-
 };
 
 
@@ -178,11 +159,10 @@ private:
 	shared_ptr<Shape> user_controlled_shape;
 	shared_ptr<Line> user_controlled_laser; // kind of a hack..
 	shared_ptr<Line> user_controlled_aim; // kind of a hack..
+	shared_ptr<Circle> user_controlled_ninjarope; // kind of a hack..
 
 	vector<shared_ptr<AI>> sharedPtrAI;
-	vector<shared_ptr<ITrigger>> sharedPtrTriggers;
 	vector<shared_ptr<IHull>> sharedPtrHulls;
-	
 
 public:
 	World() { sAppName = "World"; }
@@ -215,8 +195,6 @@ public:
 		sharedPtrCircles.push_back(circle);
 		circle->addForce(4.0f, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
-		//circle->setMass(5.0f);
-		//circle->setCanCollide(false);
 
 		shared_ptr<IHull> hull = make_shared<playerHull>(circle);
 		sharedPtrHulls.push_back(hull);
@@ -227,6 +205,20 @@ public:
 		sharedPtrAI.push_back(ai);
 		circle->setAI(ai);
 		ai->setup();
+		return circle;
+	}
+
+	shared_ptr<Circle> createNinjaRope() {
+		shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::WHITE);
+		sharedPtrCircles.push_back(circle);
+		circle->addForce(4.0f, user_controlled_shape->getAngle());
+		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
+
+		shared_ptr<AI> ai = make_shared<AI_ninjarope>(circle, user_controlled_shape);
+		sharedPtrAI.push_back(ai);
+		ai->setWorld(this);
+		ai->setup();
+		circle->setAI(ai);
 		return circle;
 	}
 
@@ -307,6 +299,15 @@ public:
 		}
 		if (GetKey(olc::Key::S).bReleased) dynamic_cast<AI_aim*>(user_controlled_aim->getAI().get())->key_released();
 
+		if (GetKey(olc::Key::D).bPressed) {
+			if (user_controlled_ninjarope != nullptr) {
+				user_controlled_ninjarope->setKillFlag();
+				user_controlled_ninjarope = nullptr;
+			}
+			else
+				user_controlled_ninjarope = createNinjaRope();
+		}
+
 		//dynamic_cast<Circle*>(self.get())->setStatic(true);
 		if (GetKey(olc::Key::A).bPressed) createMagbomb();
 		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
@@ -353,14 +354,15 @@ public:
 			if (each->getVisible())
 				DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); 
 		}
-		for (auto& each : sharedPtrCircles)    { 
-			if (each->getFilled())
-				FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor()); 
-			else 
-				DrawCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());	
-			
-			//DrawCircle(int(each->getX()), int(each->getY()), 200, olc::Pixel(50, 50, 155));
-			
+		for (auto& each : sharedPtrCircles) { 
+			if (each->getVisible()) {
+				if (each->getFilled())
+					FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());
+				else
+					DrawCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());
+
+				//DrawCircle(int(each->getX()), int(each->getY()), 200, olc::Pixel(50, 50, 155));
+			}
 		}
 
 		// ----- EFFECTS ----- //
@@ -500,6 +502,10 @@ public:
 							circle->reverse(); // and bounce
 							triangle->stepBack(fElapsedTime); // move out of the wall
 							triangle->reverse(); // and bounce
+
+							if (circle->getAI()) {
+								circle->getAI()->trigger(triangle, fElapsedTime);
+							}
 						}
 					}
 					// skip lines here.
@@ -636,22 +642,29 @@ public:
 };
 
 
+// AI AIM //
+
 AI_aim::AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
 
 void AI_aim::update(float tElapsedTime) {
-	
 	self->setAngle(external->getAngle());
 	self->setX(external->getX());
 	self->setY(external->getY());
-	
+
+	if (locked)
+		if (locked_on_object->getKillFlag()) {
+			locked = false; // not sure if this is reliable / stable.. 
+			self->setKillFlag();
+		}
+
 	if (locked) {
-		// draw square around target.. if i only could.
-		world->DrawRect(int(locked_on_object->getX()) - 10, int(locked_on_object->getY()) - 10, 20, 20, olc::Pixel(255, 255, 255));
+		world->DrawRect(int(locked_on_object->getX()) - 15, int(locked_on_object->getY()) - 15, 30, 30, olc::Pixel(255, 255, 255));
+		world->DrawRect(int(locked_on_object->getX()) - 14, int(locked_on_object->getY()) - 14, 28, 28, olc::Pixel(255, 255, 255));
 	}
 }
 
-void AI_aim::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
-	//if (locked) return;
+void AI_aim::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { 
+	// TODO: check if other_object is a valid target. If not, return.
 	locked_on_object = other_object;
 	locked = true;
 };
@@ -660,6 +673,68 @@ void AI_aim::key_released() {
 	self->setVisible(false);
 	self->setCanCollide(false);
 }
+
+
+// AI LASER //
+
+AI_laser::AI_laser(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
+
+void AI_laser::update(float tElapsedTime) {
+	self->setAngle(external->getAngle());
+	self->setX(external->getX());
+	self->setY(external->getY());
+}
+
+void AI_laser::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
+	other_object->damage(LASER_DAMAGE * fElapsedTime);
+	other_object->addForce(-10.0f * fElapsedTime, self->getAngle());
+}
+
+// AI NINJA ROPE //
+
+AI_ninjarope::AI_ninjarope(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
+
+void AI_ninjarope::setup() {
+	self->setMass(5.0f);
+	self->setCanBeDamaged(true);
+	self->setCanCollide(false);
+	self->setColor(olc::WHITE);
+}
+
+// TODO: can AI lasers, ninja ropes and similar make use of singleton design pattern?
+void AI_ninjarope::update(float tElapsedTime) {
+	timePassed += tElapsedTime;
+
+	if ((timePassed > 0.2f) && (timePassed < 0.25f)) self->setCanCollide(true); // TODO: need to check a flag instead here. This can get screwed in several edge cases.
+	if (!locked)
+		if (timePassed > 1.0f) self->setKillFlag(); // kill after 1 second if not locked on anything
+
+	if (locked)
+		if (locked_on_object->getKillFlag()) locked = false; // not sure if this is reliable / stable.. 
+
+	if (locked) {
+		float distance = sqrtf((locked_on_object->getX() - external->getX()) * (locked_on_object->getX() - external->getX()) + (locked_on_object->getY() - external->getY()) * (locked_on_object->getY() - external->getY()));
+		float angle = atan2(locked_on_object->getY() - external->getY(), locked_on_object->getX() - external->getX());
+		float force = distance * 0.3f * tElapsedTime;
+		locked_on_object->addForce(-force, angle);
+		external->addForce(force, angle);
+		self->setVisible(false);
+		self->setCanCollide(false);
+		self->setStatic(true);
+		world->DrawLine(int(locked_on_object->getX()), int(locked_on_object->getY()), int(external->getX()), int(external->getY()), olc::Pixel(255, 255, 255));
+	}
+}
+
+void AI_ninjarope::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
+	locked_on_object = other_object;
+	locked = true;
+}
+
+bool AI_ninjarope::force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ftype) {
+	return false; // maybe this should be handled in update() .. 
+}
+
+// ------------------- // 
 
 
 int main() {

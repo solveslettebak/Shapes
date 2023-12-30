@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AI.cpp" />
     <ClCompile Include="collisions.h" />
     <ClCompile Include="Shapes.cpp" />
   </ItemGroup>

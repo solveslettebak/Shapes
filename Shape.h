@@ -1,7 +1,7 @@
 #pragma once
 #include "olcPixelGameEngine.h"
 
-class ITrigger;
+//class ITrigger;
 class IHull;
 
 #include "AI.h"
@@ -29,12 +29,13 @@ public:
 	void setY(float y_) { y = y_; }
 
 	void setAI(shared_ptr<AI> ai_) { ai = ai_; }
-	void setTrigger(shared_ptr<ITrigger> trigger_) { varTrigger = trigger_; }
+	//void setTrigger(shared_ptr<ITrigger> trigger_) { varTrigger = trigger_; }
 	//void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) { varTrigger->trigger(owner, victim); };
 	void damage(float amount) { if (canBeDamaged) hull->damage(amount); }
 	void setKillFlag() { killFlag = true; }
 	bool getKillFlag() { return killFlag; }
 	void setCanBeDamaged(bool canBeDamaged_) { canBeDamaged = canBeDamaged_; }
+	bool getCanBeDamaged() { return canBeDamaged; }
 	void setHull(shared_ptr<IHull> hull_) { hull = hull_; }
 	shared_ptr<IHull> getHull() { return hull; }
 	void setMass(float mass_) { mass = mass_; }
@@ -46,6 +47,7 @@ public:
 	bool getFilled() { return filled; }
 	void setFilled(bool filled_) { filled = filled_; }
 	void setStatic(bool isStatic_) { isStatic = isStatic_; }
+	bool getStatic() { return isStatic; }
 	bool getVisible() { return isVisible; }
 	void setVisible(bool isVisible_) { isVisible = isVisible_; }
 
@@ -91,7 +93,7 @@ protected:
 	bool isVisible = true;
 	float x, y; // world coordinates
 
-	shared_ptr<ITrigger> varTrigger;
+	//shared_ptr<ITrigger> varTrigger;
 	shared_ptr<IHull> hull;
 	shared_ptr<AI> ai;
 	olc::Pixel color;
