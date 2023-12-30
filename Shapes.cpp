@@ -288,6 +288,8 @@ public:
 
 		// ----- BEHAVIOUR ----- //
 
+		// TODO: move user controls to AI's
+
 		if (GetKey(olc::Key::ESCAPE).bPressed) return false;
 
 		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser();
@@ -414,8 +416,10 @@ public:
 		for (auto& triangle : sharedPtrTriangles) { triangle->applyForce(); }
 		for (auto& circle : sharedPtrCircles) { circle->applyForce(); }
 
-		// Remove dead things
+		// ----- CLEANUP ----- //
 
+		// TODO: merge this stuff with the collision detection creation of one vector. Reduces number of times we have to loop through everything. 
+		// 
 		// Shapes
 		for (auto& each : sharedPtrTriangles) {
 			if (each->getKillFlag()) {
@@ -447,8 +451,6 @@ public:
 		for (auto& shape : sharedPtrCircles) { shape->updatePosition();}
 		for (auto& shape : sharedPtrTriangles) { shape->updatePosition(); }
 
-		//sharedPtrLines.clear();
-
 		return true;
 	}
 
@@ -456,9 +458,6 @@ public:
 
 
 #include "collisions.h"
-
-
-
 
 	void checkCollisions2(float fElapsedTime) {
 		vector<shared_ptr<Shape>> shapes;
