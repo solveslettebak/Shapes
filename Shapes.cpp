@@ -1,9 +1,11 @@
 // TODO: 
 // - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
 // - Test object with gravity as a force, cover the whole world.
+// - Guided missile. Change user_controlled_shape and inputs.
+// - light/shadow (with possibility for multiple light sources. Holy slow...)
 // - Moving world
 // - Starry background
-// - light/shadow
+// - Quad tree
 // - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
 // - may need to redesign a bit so everything is handled in World class, and references to this are sent everywhere, or even just be global.
 // 
@@ -161,6 +163,9 @@ private:
 	shared_ptr<Line> user_controlled_aim; // kind of a hack..
 	shared_ptr<Circle> user_controlled_ninjarope; // kind of a hack..
 
+	float magballForce = 0.0f;
+	bool magballCharging = false;
+
 	vector<shared_ptr<AI>> sharedPtrAI;
 	vector<shared_ptr<IHull>> sharedPtrHulls;
 
@@ -190,10 +195,11 @@ public:
 		return shape;
 	}
 
-	std::shared_ptr<Shape> createMagbomb() {
+	std::shared_ptr<Shape> createMagbomb(float force) {
 		shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::GREEN);
 		sharedPtrCircles.push_back(circle);
-		circle->addForce(4.0f, user_controlled_shape->getAngle());
+		if (force > 1.0f) force = 1.0f;
+		circle->addForce(1.5f + force * 5, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
 
 		shared_ptr<IHull> hull = make_shared<playerHull>(circle);
@@ -266,7 +272,7 @@ public:
 		user_controlled_shape = createPlayer();
 
 		for (int i = 0; i < 20; i++) addRandomEnemy();
-		for (int i = 0; i < 40; i++) createBall();
+		for (int i = 0; i < 20; i++) createBall();
 
 
 		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, ScreenHeight()-20, olc::WHITE);
@@ -311,7 +317,21 @@ public:
 		}
 
 		//dynamic_cast<Circle*>(self.get())->setStatic(true);
-		if (GetKey(olc::Key::A).bPressed) createMagbomb();
+		// TODO : decide on auto-release when max force achieved, or hold there until released.
+		if (GetKey(olc::Key::A).bPressed) { magballForce = 0.0f; magballCharging = true; }
+		if ((GetKey(olc::Key::A).bHeld) && (magballCharging == true)) {
+			magballForce += fElapsedTime; 
+			FillRect(int(user_controlled_shape->getX()) - 15, int(user_controlled_shape->getY()) + 15, int(30.0f * magballForce), 5, olc::Pixel(255 * (1.0f - magballForce), 255 * magballForce, 0));
+		}
+		if (((GetKey(olc::Key::A).bReleased) || (magballForce > 1.0f)) && (magballCharging == true)) {
+			createMagbomb(magballForce); 
+			magballCharging = false; 
+			magballForce = 0.0f; 
+		}
+			
+			
+
+
 		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
 		if (GetKey(olc::Key::PGUP).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }
 		if (GetKey(olc::Key::PGDN).bHeld)  { user_controlled_shape->rotate(  SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }

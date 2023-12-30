@@ -4,6 +4,39 @@
 #include <vector>
 #include <iostream>
 
+// ----- Helper functions ----- //
+
+float minimum(float a, float b, float c) {
+	if (a <= b && a <= c) return a;
+	if (b <= a && b <= c) return b;
+	return c;
+}
+
+float maximum(float a, float b, float c) {
+	if (a >= b && a >= c) return a;
+	if (b >= a && b >= c) return b;
+	return c;
+}
+
+sRect TriangleToRectangle(sTriangle tr) {
+	float x = minimum(tr.x1, tr.x2, tr.x3);
+	float y = minimum(tr.y1, tr.y2, tr.y3);
+	float w = maximum(tr.x1, tr.x2, tr.x3) - x;
+	float h = maximum(tr.y1, tr.y2, tr.y3) - y;
+	return sRect{ x, y, w, h };
+}
+
+sRect CircleToRectangle(sCircle c) {
+	return sRect{ c.x - c.r, c.y - c.r, c.r * 2, c.r * 2 };
+}
+
+
+
+// ----- Collision functions ----- //
+
+
+
+
 bool LineLineCollision(sLine A, sLine B, float& px, float& py) {
 	float x1 = A.x1;
 	float y1 = A.y1;
@@ -209,7 +242,19 @@ bool LineRectCollision(sLine ln, sRect rect, float& px, float& py) {
 	return collision;
 }
 
+bool RectangleRectangleCollision(sRect r1, sRect r2) {
+	return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
+}
+
+
+
 bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
+	 // early out if the rectangles don't intersect. Doesn't seem to help.
+	sRect trRect = TriangleToRectangle(tr);
+	if (!RectangleRectangleCollision(rect, trRect)) {
+		return false;
+	}	
+
 	sLine trA = sLine{ tr.x1, tr.y1, tr.x2, tr.y2 };
 	sLine trB = sLine{ tr.x2, tr.y2, tr.x3, tr.y3 };
 	sLine trC = sLine{ tr.x3, tr.y3, tr.x1, tr.y1 };
