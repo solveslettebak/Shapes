@@ -49,19 +49,7 @@ using namespace std;
 class AI;
 class Shape;
 
-/*
-class triggerLaser : public ITrigger {
-public:
-	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
-		victim->damage(0.1f);
-	};
-};
-class triggerAim : public ITrigger {
-public:
-	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) override {
-		
-	};
-};*/
+
 class playerHull : public IHull {
 public:
 	playerHull(shared_ptr<Shape> owner_) { maxArmor = 100.0f; currentArmor = 100.0f; owner = owner_; }
@@ -175,41 +163,11 @@ public:
 
 };
 
-class AI_aim : public AI {
-protected:
-	bool locked = false;
-public:
-	AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
-
-	void update(float tElapsedTime) override {
-		if (!locked) {
-			self->setAngle(external->getAngle());
-			self->setX(external->getX());
-			self->setY(external->getY());
-		}
-		else {
-			// draw square around target.. if i only could.
-
-		}
-	}
-
-	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override { // TODO: need fElapsedTime here also
-		external = other_object;
-	};
-
-	// Aim specific functions
-
-	void key_released() {
-		self->setVisible(false);
-		self->setCanCollide(false);
-	}
-
-
-};
 
 
 
-class World : public olc::PixelGameEngine {
+
+class World : public olc::PixelGameEngine, std::enable_shared_from_this<World> {
 
 private:
 	vector<shared_ptr<Triangle>> sharedPtrTriangles;
@@ -300,6 +258,11 @@ public:
 		sharedPtrLines.push_back(aim);
 
 		shared_ptr<AI_aim> ai = make_shared<AI_aim>(aim, user_controlled_shape);
+		//ai->setWorld(std::make_shared<World>(weak_from_this()));
+		World *world = this;
+		
+		//ai->setWorld(shared_from_this()); // TODO: figure out this shit and work with proper shared_ptrs or whatever. For now - this somehow compiles.
+		ai->setWorld(world);
 		sharedPtrAI.push_back(ai);
 		aim->setAI(ai);
 
@@ -333,11 +296,17 @@ public:
 
 		// ----- BEHAVIOUR ----- //
 
+		if (GetKey(olc::Key::ESCAPE).bPressed) return false;
+
 		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser();
 		if (GetKey(olc::Key::B).bReleased) user_controlled_laser->setKillFlag();
 
-		if (GetKey(olc::Key::S).bPressed) user_controlled_aim = createAim();
+		if (GetKey(olc::Key::S).bPressed) {
+			if (user_controlled_aim) user_controlled_aim->setKillFlag();
+			user_controlled_aim = createAim();
+		}
 		if (GetKey(olc::Key::S).bReleased) dynamic_cast<AI_aim*>(user_controlled_aim->getAI().get())->key_released();
+
 		//dynamic_cast<Circle*>(self.get())->setStatic(true);
 		if (GetKey(olc::Key::A).bPressed) createMagbomb();
 		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
@@ -493,7 +462,7 @@ public:
 		vector<shared_ptr<Shape>> shapes;
 
 		// lines first, because they need to be treated differently
-		for (auto& line : sharedPtrLines) { shapes.push_back(line); }
+		for (auto& line : sharedPtrLines) { if (line->getCanCollide()) shapes.push_back(line); }
 		// then the rest
 		for (auto& triangle : sharedPtrTriangles) { if (triangle->getCanCollide()) shapes.push_back(triangle); }
 		for (auto& rectangle : sharedPtrRectangles) { if (rectangle->getCanCollide()) shapes.push_back(rectangle); }
@@ -519,14 +488,8 @@ public:
 					else if (std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[j])) {
 						// do triangle-rectangle collision
 						if (TriangleRectCollision(triangle->worldCoordinates(), rectangle->getStruct(), px, py)) {
-							//cout << "collision" << endl;
-							//triangle->addForce(-10.0f, triangle->getAngle());
-							//triangle->setKineticEnergy(triangle->getKineticEnergy(), triangle->getDirection() + 3.14f);
 							triangle->stepBack(fElapsedTime); // move out of the wall
 							triangle->reverse(); // and bounce
-							//triangle->setKillFlag();
-							// need to resolve collision
-							// then do dynamic collision stuff..
 						}
 					}
 					else if (std::shared_ptr<Circle> circle = std::dynamic_pointer_cast<Circle>(shapes[j])) {
@@ -673,9 +636,35 @@ public:
 };
 
 
+AI_aim::AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
+
+void AI_aim::update(float tElapsedTime) {
+	
+	self->setAngle(external->getAngle());
+	self->setX(external->getX());
+	self->setY(external->getY());
+	
+	if (locked) {
+		// draw square around target.. if i only could.
+		world->DrawRect(int(locked_on_object->getX()) - 10, int(locked_on_object->getY()) - 10, 20, 20, olc::Pixel(255, 255, 255));
+	}
+}
+
+void AI_aim::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
+	//if (locked) return;
+	locked_on_object = other_object;
+	locked = true;
+};
+
+void AI_aim::key_released() {
+	self->setVisible(false);
+	self->setCanCollide(false);
+}
+
 
 int main() {
 	World world;
+
 	if (world.Construct(800, 600, 1, 1))
 		world.Start();
 	return 0;

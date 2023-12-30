@@ -6,7 +6,7 @@ class IHull;
 
 #include "AI.h"
 #include "Hull.h"
-#include "Trigger.h"
+//#include "Trigger.h"
 
 #include <memory>
 #include <vector>
@@ -30,7 +30,7 @@ public:
 
 	void setAI(shared_ptr<AI> ai_) { ai = ai_; }
 	void setTrigger(shared_ptr<ITrigger> trigger_) { varTrigger = trigger_; }
-	void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) { varTrigger->trigger(owner, victim); };
+	//void trigger(shared_ptr<Shape> owner, shared_ptr<Shape> victim) { varTrigger->trigger(owner, victim); };
 	void damage(float amount) { if (canBeDamaged) hull->damage(amount); }
 	void setKillFlag() { killFlag = true; }
 	bool getKillFlag() { return killFlag; }
@@ -84,7 +84,7 @@ protected:
 	float forceX = 0.0f;
 	float forceY = 0.0f;
 	bool isStatic = false;
-	bool canCollide;
+	bool canCollide = true;
 	bool killFlag = false;
 	bool canBeDamaged = false;
 	bool filled = true;

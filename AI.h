@@ -5,6 +5,7 @@
 using namespace std;
 
 class Shape;
+class World;
 
 #include <memory>
 
@@ -21,11 +22,28 @@ public:
 	void setDestroyFlag(bool destroyFlag_) { destroyFlag = destroyFlag_; }
 	shared_ptr<Shape> getExternal() { return external; }
 	shared_ptr<Shape> getSelf() { return self; }
+
+	//void setWorld(shared_ptr<World> world_) { world = world_; }
+	void setWorld(World* world_) { world = shared_ptr<World>(world_); }
+	shared_ptr<World> getWorld() { return world; }
 protected:
 	shared_ptr<Shape> self, external;
 	bool destroyFlag = false;
 
-	void* world; // Hack. Points to world object.
+	//void* world; // Hack. Points to world object.
+	shared_ptr<World> world;
 };
 
 
+
+class AI_aim : public AI {
+protected:
+	bool locked = false;
+	shared_ptr<Shape> locked_on_object;
+
+public:
+	AI_aim(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
+	void key_released();
+	virtual void trigger(shared_ptr<Shape> other_object, float fElapsedTime);
+	virtual void update(float fElapsedTime);
+};
