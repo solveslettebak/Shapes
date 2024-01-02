@@ -1,0 +1,26 @@
+// TODO:
+// - For shadowcasting: can do a simpler way to see if triangles overlap shapes: if centerpoint is inside triangle, then count them as inside. Otherwise outside.
+//		- Can also consider casting a line between center of observer to center of each, and detect any overlap there, if that could be better. Maybe not... 
+// - Magballs, or another similar weapon: make them sticky when they hit metal..? Highly inelastic collision when hitting enemy objects. Fully elastic on asteroids. 
+//		- Expand the Hull class with this kind of stuff. Add money of some type, let user buy new hulls, weapons, etc. - "ceramic hull" (non-magnetic).. etc
+// - Idea: tractor beam, but once aimed at an object, use arrows to control movement of that object, along axis of the beam - or just along x,y.. 
+// - Idea: max range on laser. Led it fade from red to background. Need to reimplement the line draw function.
+// - Idea: powerups! should be reasonably simple to do. Trigger checks other object, if it is user_controlled and colliding, then .. something.
+// - Idea: Mag deflector! from scorched earth.
+// - Make thrust level off, so it is strong when still, and zero at some point
+//		- Also, make it so that it is stronger when moving in opposite direction of thrust
+// - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
+// - Test object with gravity as a force, cover the whole world.
+// - Guided missile. Change user_controlled_shape and inputs.
+// - light/shadow (with possibility for multiple light sources. Holy slow...)
+// - Moving world
+// - Zoom in and out. Do at the same time as moving world.
+// - Starry background
+// - Quad tree
+// - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
+// - may need to redesign a bit so everything is handled in World class, and references to this are sent everywhere, or even just be global.
+// 
+// - AI: rename to "controller" maybe?
+// - AI: right now it is added in two places I think. One creates it, and then added in Shape. Should be added in one place only.
+// - Force-class maybe? instead of the enum solution. an AI can then add multiple forces and types of forces
+// - AI: flee, follow, patrol, attack, defend, random, etc

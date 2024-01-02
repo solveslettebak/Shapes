@@ -1,9 +1,19 @@
-// TODO: 
+// TODO:
+// - For shadowcasting: can do a simpler way to see if triangles overlap shapes: if centerpoint is inside triangle, then count them as inside. Otherwise outside.
+//		- Can also consider casting a line between center of observer to center of each, and detect any overlap there, if that could be better. Maybe not... 
+// - Magballs, or another similar weapon: make them sticky when they hit metal..? Highly inelastic collision when hitting enemy objects. Fully elastic on asteroids. 
+//		- Expand the Hull class with this kind of stuff. Add money of some type, let user buy new hulls, weapons, etc. - "ceramic hull" (non-magnetic).. etc
+// - Idea: tractor beam, but once aimed at an object, use arrows to control movement of that object, along axis of the beam - or just along x,y.. 
+// - Idea: max range on laser. Led it fade from red to background. Need to reimplement the line draw function.
+// - Idea: powerups! should be reasonably simple to do. Trigger checks other object, if it is user_controlled and colliding, then .. something.
+// - Make thrust level off, so it is strong when still, and zero at some point
+//		- Also, make it so that it is stronger when moving in opposite direction of thrust
 // - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
 // - Test object with gravity as a force, cover the whole world.
 // - Guided missile. Change user_controlled_shape and inputs.
 // - light/shadow (with possibility for multiple light sources. Holy slow...)
 // - Moving world
+// - Zoom in and out. Do at the same time as moving world.
 // - Starry background
 // - Quad tree
 // - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
@@ -146,8 +156,11 @@ public:
 	}
 };
 
-
-
+// replace with something later.
+struct sEdge {
+	float sx, sy; // start
+	float ex, ey; // end
+};
 
 
 class World : public olc::PixelGameEngine, std::enable_shared_from_this<World> {
@@ -169,8 +182,130 @@ private:
 	vector<shared_ptr<AI>> sharedPtrAI;
 	vector<shared_ptr<IHull>> sharedPtrHulls;
 
+	vector<sEdge> vecEdges;
+	vector<tuple<float, float, float>> vecVisibilityPolygonPoints;
+
 public:
 	World() { sAppName = "World"; }
+
+	void createVecEdges() {
+		vecEdges.clear();
+		for (auto& rectangle : sharedPtrRectangles) {
+			vecEdges.push_back({ rectangle->getX(), rectangle->getY(), rectangle->getX() + rectangle->w, rectangle->getY() });
+			vecEdges.push_back({ rectangle->getX() + rectangle->w, rectangle->getY(), rectangle->getX() + rectangle->w, rectangle->getY() + rectangle->h });
+			vecEdges.push_back({ rectangle->getX() + rectangle->w, rectangle->getY() + rectangle->h, rectangle->getX(), rectangle->getY() + rectangle->h });
+			vecEdges.push_back({ rectangle->getX(), rectangle->getY() + rectangle->h, rectangle->getX(), rectangle->getY() });
+		}
+	}
+
+	void CalculateVisibilityPolygon(float ox, float oy, float radius) {
+		vecVisibilityPolygonPoints.clear();
+
+		// for each edge in PolyMap
+		for (auto& e1 : vecEdges) {
+			for (int i = 0; i < 2; i++) {
+				float rdx, rdy;
+				rdx = (i == 0 ? e1.sx : e1.ex) - ox;
+				rdy = (i == 0 ? e1.sy : e1.ey) - oy;
+
+				float base_ang = atan2f(rdy, rdx);
+
+				float ang = 0;
+
+				// for each point, cast 3 rays, 1 directly at point, and 1 a little bit on either side
+				for (int j = 0; j < 3; j++) {
+					if (j == 0) ang = base_ang - 0.0001f;
+					if (j == 1) ang = base_ang;
+					if (j == 2) ang = base_ang + 0.0001f;
+
+					// create ray along angle for required distance
+					rdx = radius * cosf(ang);
+					rdy = radius * sinf(ang);
+
+					float min_t1 = INFINITY;
+					float min_px = 0, min_py = 0, min_ang = 0;
+					bool bValid = false;
+
+					// Check for ray intersections with all edges
+					for (auto& e2 : vecEdges) {
+						// create line segment vector
+						float sdx = e2.ex - e2.sx;
+						float sdy = e2.ey - e2.sy;
+
+						if (fabs(sdx - rdx) > 0.0f && fabs(sdy - rdy) > 0.0f) {
+							// t2 is normalised distance from line segment start to line segment end of intersect po
+							float t2 = (rdx * (e2.sy - oy) + (rdy * (ox - e2.sx))) / (sdx * rdy - sdy * rdx); // missing something here... 
+							// t1 is normalised distance from source along ray to ray length of intersect point
+							float t1 = (e2.sx + sdx * t2 - ox) / rdx;
+
+							// if intersect point exists along ray, and along line
+							// segment then intersect point is valid
+							if (t1 > 0 && t2 >= 0 && t2 <= 1.0f) {
+								// Check if this intersect point is closest to source, and if it is, then store this point and reject others
+								if (t1 < min_t1) {
+									min_t1 = t1;
+									min_px = ox + rdx * t1;
+									min_py = oy + rdy * t1;
+									min_ang = atan2f(min_py - oy, min_px - ox);
+									bValid = true;
+								}
+							}
+						}
+					}
+
+					// add intersection point to visibility polygon perimeter
+					if (bValid)
+						vecVisibilityPolygonPoints.push_back({ min_ang, min_px, min_py });
+				}
+			}
+		}
+
+		// Sort perimeter points by angle from source. This will allow us to draw a triangle fan
+		sort(
+			vecVisibilityPolygonPoints.begin(),
+			vecVisibilityPolygonPoints.end(),
+			[&](const tuple<float, float, float>& t1, const tuple<float, float, float>& t2)
+			{
+				return get<0>(t1) < get<0>(t2);
+			});
+	}
+
+	void shadowCastDraw() {
+		auto it = unique(
+			vecVisibilityPolygonPoints.begin(),
+			vecVisibilityPolygonPoints.end(),
+			[&](const tuple<float, float, float>& t1, const tuple<float, float, float>& t2) {
+				return fabs(get<1>(t1) - get<1>(t2)) < 0.1f && fabs(get<2>(t1) - get<2>(t2)) < 0.1f;
+			});
+
+		vecVisibilityPolygonPoints.resize(distance(vecVisibilityPolygonPoints.begin(), it));
+
+		//int nRaysCast2 = vecVisibilityPolygonPoints.size();
+		//DrawString(4, 4, "Rays Cast: " + to_string(nRaysCast) + "Rays Drawn: " + to_string(nRaysCast2));
+
+		if (vecVisibilityPolygonPoints.size() > 1) {
+			// draw triangle fan
+			for (int i = 0; i < vecVisibilityPolygonPoints.size() - 1; i++) {
+				FillTriangle(
+					user_controlled_shape->getX(),
+					user_controlled_shape->getY(),
+					get<1>(vecVisibilityPolygonPoints[i]),
+					get<2>(vecVisibilityPolygonPoints[i]),
+
+					get<1>(vecVisibilityPolygonPoints[i + 1]),
+					get<2>(vecVisibilityPolygonPoints[i + 1]), olc::DARK_BLUE);
+			}
+
+			FillTriangle(
+				user_controlled_shape->getX(),
+				user_controlled_shape->getY(),
+				get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
+				get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
+				get<1>(vecVisibilityPolygonPoints[0]),
+				get<2>(vecVisibilityPolygonPoints[0]), olc::DARK_BLUE);
+		}
+	}
+
 
 	void addRandomEnemy() {
 		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
@@ -274,7 +409,6 @@ public:
 		for (int i = 0; i < 20; i++) addRandomEnemy();
 		for (int i = 0; i < 20; i++) createBall();
 
-
 		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, ScreenHeight()-20, olc::WHITE);
 		shared_ptr<Rect> rightWall = make_shared<Rect>(ScreenWidth()-15, 10, 5, ScreenHeight()-20, olc::WHITE);
 		shared_ptr<Rect> topWall = make_shared<Rect>(10, 10, ScreenWidth()-20, 5, olc::WHITE);
@@ -284,13 +418,43 @@ public:
 		sharedPtrRectangles.push_back(topWall);
 		sharedPtrRectangles.push_back(bottomWall);
 
+		shared_ptr<Rect> randomWall = make_shared<Rect>(200, 100, 30, 40, olc::WHITE); sharedPtrRectangles.push_back(randomWall);
+		shared_ptr<Rect> randomWall2 = make_shared<Rect>(300, 200, 30, 40, olc::WHITE); sharedPtrRectangles.push_back(randomWall2);
+		shared_ptr<Rect> randomWall3 = make_shared<Rect>(400, 300, 30, 40, olc::WHITE); sharedPtrRectangles.push_back(randomWall3);
+		shared_ptr<Rect> randomWall4 = make_shared<Rect>(500, 400, 30, 40, olc::WHITE); sharedPtrRectangles.push_back(randomWall4);
+		randomWall->setColor(olc::BLUE);
+		randomWall2->setColor(olc::BLUE);
+		randomWall3->setColor(olc::BLUE);
+		randomWall4->setColor(olc::BLUE);
+
+
+		createVecEdges();
+
 		return true;
 	}
 
 
 
 	bool OnUserUpdate(float fElapsedTime) override {
-		Clear(olc::DARK_BLUE);
+		Clear(olc::BLACK);
+
+		srand(10);
+
+		for (int i = 0; i < 200; i++) {
+			float x = rand() % ScreenWidth();
+			float y = rand() % ScreenHeight();
+			olc::Pixel p = olc::Pixel(rand() % 255, rand() % 255, rand() % 255);
+			Draw(x, y, p);
+			Draw(x-1, y, p);
+			Draw(x+1, y, p);
+			Draw(x, y-1, p);
+			Draw(x, y+1, p);
+		}
+
+		CalculateVisibilityPolygon(user_controlled_shape->getX(), user_controlled_shape->getY(), 200.0f);
+
+		shadowCastDraw();
+
 
 		// ----- BEHAVIOUR ----- //
 
@@ -350,9 +514,40 @@ public:
 
 		checkCollisions2(fElapsedTime);
 
+
+		// TODO: Expand to all shape types (can be generalized to just Shape class).
+		// TODO: Later on: remove this method, and implement some sort of double buffering or other magic to display partially hidden items. Just paint over stuff basically.
+		// check center point on shapes, if inside visible area
+		for (auto& triangle : sharedPtrTriangles) { // all this is in Shape, can concat that, but lets try this first
+			float x = triangle->getX();
+			float y = triangle->getY();
+			bool inShadow = true;
+			sTriangle tri;
+			if (vecVisibilityPolygonPoints.size() > 1) {
+				for (int i = 0; i < vecVisibilityPolygonPoints.size() - 1; i++) {
+					 tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
+											get<1>(vecVisibilityPolygonPoints[i]), get<2>(vecVisibilityPolygonPoints[i]),
+											get<1>(vecVisibilityPolygonPoints[i + 1]), get<2>(vecVisibilityPolygonPoints[i + 1]) };
+					if (PointTriangleCollision(x, y, tri)) {
+						inShadow = false;
+						break;
+					}
+				}
+				if (inShadow)
+					tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
+																get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]), get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
+																get<1>(vecVisibilityPolygonPoints[0]), get<2>(vecVisibilityPolygonPoints[0]) };
+					if (PointTriangleCollision(x, y, tri))
+						inShadow = false;
+			}
+			triangle->setIsInShadow(inShadow);
+		}
+
+
 		// ---- DRAW ----- //
 
 		for (auto& each : sharedPtrTriangles)  { 
+			if (each->getIsInShadow()) continue; 
 			if (each->getFilled()) 
 				DrawTriangle(each->worldCoordinates(), each->getColor()); 
 			else {

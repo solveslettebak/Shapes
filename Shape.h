@@ -50,6 +50,8 @@ public:
 	bool getStatic() { return isStatic; }
 	bool getVisible() { return isVisible; }
 	void setVisible(bool isVisible_) { isVisible = isVisible_; }
+	bool getIsInShadow() { return isInShadow; }
+	void setIsInShadow(bool isInShadow_) { isInShadow = isInShadow_; }
 
 
 
@@ -91,6 +93,7 @@ protected:
 	bool canBeDamaged = false;
 	bool filled = true;
 	bool isVisible = true;
+	bool isInShadow = false;
 	float x, y; // world coordinates
 
 	//shared_ptr<ITrigger> varTrigger;
