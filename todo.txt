@@ -24,3 +24,8 @@
 // - AI: right now it is added in two places I think. One creates it, and then added in Shape. Should be added in one place only.
 // - Force-class maybe? instead of the enum solution. an AI can then add multiple forces and types of forces
 // - AI: flee, follow, patrol, attack, defend, random, etc
+
+// Notes for next version:
+// - Obj should come back, and have a shape. Shape refers back to Obj with an owner field. Not sure why I didn't do that in the end..
+// - Need to figure out how objects should be talking to each other. And structure everything neatly from the start. Probably all objects just talk to World, somehow.
+// - draw up some oop diagrams, and figure out how to structure everything.
