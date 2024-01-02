@@ -49,7 +49,18 @@ public:
 			cout << "Enemy killed" << endl;
 		}
 	}
+};
 
+class genericWeaponHull : public IHull {
+public:
+	genericWeaponHull(shared_ptr<Shape> owner_) { maxArmor = 1.0f; currentArmor = 1.0f; owner = owner_; }
+	void damage(float amount) override {
+		currentArmor -= amount;
+		if (currentArmor < 0.0f) {
+			owner->setKillFlag();
+			cout << "Weapon killed" << endl;
+		}
+	}
 };
 
 
@@ -231,7 +242,7 @@ public:
 		sharedPtrHulls.push_back(hull);
 		shape->setHull(hull);
 		shape->setCanBeDamaged(true);
-		hull->setRepairRate(2.0f);
+		hull->setRepairRate(20.0f);
 		return shape;
 	}
 
@@ -242,10 +253,9 @@ public:
 		circle->addForce(1.5f + force * 5, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
 
-		shared_ptr<IHull> hull = make_shared<playerHull>(circle);
+		shared_ptr<IHull> hull = make_shared<genericWeaponHull>(circle);
 		sharedPtrHulls.push_back(hull);
 		circle->setHull(hull);
-		circle->getHull()->setArmor(1.0f);
 
 		shared_ptr<AI> ai = make_shared<AI_magbomb>(circle, nullptr);
 		sharedPtrAI.push_back(ai);
@@ -429,33 +439,6 @@ public:
 		checkCollisions2(fElapsedTime);
 
 
-		// TODO: Expand to all shape types (can be generalized to just Shape class).
-		// TODO: Later on: remove this method, and implement some sort of double buffering or other magic to display partially hidden items. Just paint over stuff basically.
-		// check center point on shapes, if inside visible area
-		for (auto& triangle : sharedPtrTriangles) { // all this is in Shape, can concat that, but lets try this first
-			float x = triangle->getX();
-			float y = triangle->getY();
-			bool inShadow = true;
-			sTriangle tri;
-			if (vecVisibilityPolygonPoints.size() > 1) {
-				for (int i = 0; i < vecVisibilityPolygonPoints.size() - 1; i++) {
-					 tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
-											get<1>(vecVisibilityPolygonPoints[i]), get<2>(vecVisibilityPolygonPoints[i]),
-											get<1>(vecVisibilityPolygonPoints[i + 1]), get<2>(vecVisibilityPolygonPoints[i + 1]) };
-					if (PointTriangleCollision(x, y, tri)) {
-						inShadow = false;
-						break;
-					}
-				}
-				if (inShadow)
-					tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
-																get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]), get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
-																get<1>(vecVisibilityPolygonPoints[0]), get<2>(vecVisibilityPolygonPoints[0]) };
-					if (PointTriangleCollision(x, y, tri))
-						inShadow = false;
-			}
-			triangle->setIsInShadow(inShadow);
-		}
 
 
 		// ---- DRAW ----- //
@@ -486,6 +469,7 @@ public:
 				DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); 
 		}
 		for (auto& each : sharedPtrCircles) { 
+			if (each->getIsInShadow()) continue;
 			if (each->getVisible()) {
 				if (each->getFilled())
 					FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());
@@ -586,6 +570,37 @@ public:
 	void DrawTriangle(sTriangle t, olc::Pixel color) { FillTriangle(int(t.x1), int(t.y1), int(t.x2), int(t.y2), int(t.x3), int(t.y3), color); }
 
 
+	void checkIfInShadow(vector<shared_ptr<Shape>> vecShapes) {
+		// TODO: Expand to all shape types (can be generalized to just Shape class).
+		// TODO: Later on: remove this method, and implement some sort of double buffering or other magic to display partially hidden items. Just paint over stuff basically.
+		// check center point on shapes, if inside visible area
+		for (auto& triangle : vecShapes) { // all this is in Shape, can concat that, but lets try this first
+			float x = triangle->getX();
+			float y = triangle->getY();
+			bool inShadow = true;
+			sTriangle tri;
+			if (vecVisibilityPolygonPoints.size() > 1) {
+				for (int i = 0; i < vecVisibilityPolygonPoints.size() - 1; i++) {
+					tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
+										   get<1>(vecVisibilityPolygonPoints[i]), get<2>(vecVisibilityPolygonPoints[i]),
+										   get<1>(vecVisibilityPolygonPoints[i + 1]), get<2>(vecVisibilityPolygonPoints[i + 1]) };
+					if (PointTriangleCollision(x, y, tri)) {
+						inShadow = false;
+						break;
+					}
+				}
+				if (inShadow)
+					tri = sTriangle{ user_controlled_shape->getX(), user_controlled_shape->getY(),
+																get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]), get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
+																get<1>(vecVisibilityPolygonPoints[0]), get<2>(vecVisibilityPolygonPoints[0]) };
+				if (PointTriangleCollision(x, y, tri))
+					inShadow = false;
+			}
+			triangle->setIsInShadow(inShadow);
+		}
+	}
+
+
 #include "collisions.h"
 
 
@@ -633,6 +648,8 @@ public:
 		for (auto& triangle : sharedPtrTriangles) { if (triangle->getCanCollide()) shapes.push_back(triangle); }
 		for (auto& rectangle : sharedPtrRectangles) { if (rectangle->getCanCollide()) shapes.push_back(rectangle); }
 		for (auto& circle : sharedPtrCircles) { if (circle->getCanCollide()) shapes.push_back(circle); }
+
+		checkIfInShadow(shapes);
 
 		for (size_t i = 0; i < shapes.size(); i++) {
 
