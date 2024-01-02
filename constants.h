@@ -11,6 +11,7 @@ const float MB_MASS		   =  1.0f;
 const float SHIP_ROTATE_SPEED_FAST =  3.0f;
 const float SHIP_ROTATE_SPEED_SLOW =  0.5f;
 const float SHIP_THRUST            = 30.0f;
+const float SHIP_MASS = 100.0f;
 
 // Laser constants
 const float LASER_DAMAGE = 100.0f;

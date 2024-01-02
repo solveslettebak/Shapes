@@ -39,6 +39,19 @@ public:
 	}
 };
 
+class evilTriangleHull : public IHull {
+public:
+	evilTriangleHull(shared_ptr<Shape> owner_) { maxArmor = 100.0f; currentArmor = 100.0f; owner = owner_; }
+	void damage(float amount) override {
+		currentArmor -= amount;
+		if (currentArmor < 0.0f) {
+			owner->setKillFlag();
+			cout << "Enemy killed" << endl;
+		}
+	}
+
+};
+
 
 
 
@@ -201,7 +214,7 @@ public:
 		sharedPtrAI.push_back(enemy_AI);
 		//shape->setAI(enemy_AI); // not used yet
 
-		shared_ptr<IHull> hull = make_shared<playerHull>(shape);
+		shared_ptr<IHull> hull = make_shared<evilTriangleHull>(shape);
 		sharedPtrHulls.push_back(hull);
 		shape->setHull(hull);
 		shape->setCanBeDamaged(true);
@@ -211,8 +224,14 @@ public:
 	std::shared_ptr<Shape> createPlayer() {
 		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, 50, 50, olc::RED);
 		sharedPtrTriangles.push_back(shape);
-		//user_controlled_shape = shape;
+		shape->setMass(SHIP_MASS);
 		shape->setColor(olc::GREEN);
+
+		shared_ptr<IHull> hull = make_shared<playerHull>(shape);
+		sharedPtrHulls.push_back(hull);
+		shape->setHull(hull);
+		shape->setCanBeDamaged(true);
+		hull->setRepairRate(2.0f);
 		return shape;
 	}
 
@@ -327,8 +346,8 @@ public:
 		srand(10);
 
 		for (int i = 0; i < 200; i++) {
-			float x = rand() % ScreenWidth();
-			float y = rand() % ScreenHeight();
+			int x = int(rand() % ScreenWidth());
+			int y = int(rand() % ScreenHeight());
 			olc::Pixel p = olc::Pixel(rand() % 255, rand() % 255, rand() % 255);
 			Draw(x, y, p);
 			Draw(x-1, y, p);
@@ -388,9 +407,18 @@ public:
 		if (GetKey(olc::Key::RIGHT).bHeld) { user_controlled_shape->rotate(  SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
 		if (GetKey(olc::Key::UP).bHeld)    { user_controlled_shape->addForce(SHIP_THRUST * fElapsedTime, user_controlled_shape->getAngle()); }
 
+		// ----- AI and Hull updates ----- //
+
 		for (auto& each : sharedPtrAI) { 
 			if (each->getDestroyFlag()) {
 				sharedPtrAI.erase(std::remove(sharedPtrAI.begin(), sharedPtrAI.end(), each), sharedPtrAI.end());
+				break; // find a better way. see the other delete stuff thingy
+			}
+			else { each->update(fElapsedTime); }
+		}
+		for (auto& each : sharedPtrHulls) {
+			if (each->getDestroyFlag()) {
+				sharedPtrHulls.erase(std::remove(sharedPtrHulls.begin(), sharedPtrHulls.end(), each), sharedPtrHulls.end());
 				break; // find a better way. see the other delete stuff thingy
 			}
 			else { each->update(fElapsedTime); }
@@ -676,19 +704,14 @@ public:
 
 							// doesn't work because getX/Y of a rectangle is far away from the point of collision. Probably. Static resolving should detect that point.
 							//dc(rectangle.get(), circle.get());
+							// TODO: should be simple to get the position from CircleRectangleCollision() and use that instead of getX/Y
 
 
 						}
 					}
 				}
 				else if (circle) {
-					if (std::shared_ptr<Triangle> triangle = std::dynamic_pointer_cast<Triangle>(shapes[j])) {
-						// do triangle-circle collision
-					}
-					else if (std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[j])) {
-						// do rectangle-circle collision
-					}
-					else if (std::shared_ptr<Circle> circle2 = std::dynamic_pointer_cast<Circle>(shapes[j])) {
+					if (std::shared_ptr<Circle> circle2 = std::dynamic_pointer_cast<Circle>(shapes[j])) {
 						// do circle-circle collision
 						if (CircleCircleCollision(circle->getStruct(), circle2->getStruct())) {
 							// Static resolving of collision.

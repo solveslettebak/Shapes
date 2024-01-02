@@ -58,7 +58,7 @@ bool LineLineCollision(sLine A, sLine B, float& px, float& py) {
 }
 
 struct Point {
-	double x, y;
+	float x, y;
 };
 
 //bool doesIntersect(Point p1, Point p2, Point center, double radius) { 
