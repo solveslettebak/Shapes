@@ -279,6 +279,29 @@ bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
 	return false;
 }
 
+bool TriangleTriangleCollision(sTriangle t1, sTriangle t2) {
+	sLine t1A = sLine{ t1.x1, t1.y1, t1.x2, t1.y2 };
+	sLine t1B = sLine{ t1.x2, t1.y2, t1.x3, t1.y3 };
+	sLine t1C = sLine{ t1.x3, t1.y3, t1.x1, t1.y1 };
+
+	std::vector<sLine> t1Lines = { t1A, t1B, t1C };
+
+	sLine t2A = sLine{ t2.x1, t2.y1, t2.x2, t2.y2 };
+	sLine t2B = sLine{ t2.x2, t2.y2, t2.x3, t2.y3 };
+	sLine t2C = sLine{ t2.x3, t2.y3, t2.x1, t2.y1 };
+
+	std::vector<sLine> t2Lines = { t2A, t2B, t2C };
+
+	for (auto t1Line : t1Lines) {
+		for (auto t2Line : t2Lines) {
+			float px, py;
+			if (LineLineCollision(t1Line, t2Line, px, py)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
 
 float sign(Point p1, Point p2, Point p3)

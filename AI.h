@@ -64,3 +64,31 @@ public:
 	void trigger(shared_ptr<Shape> other_object, float fElapsedTime) override;
 	bool force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ForceType) override;
 };
+
+
+
+class AI_magbomb : public AI {
+
+public:
+	AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
+	// should explode when it collides with something
+	// pushes all objects around it away when it hits something (apply small damage to them as well, depending on distance)
+	void setup() override;
+	void update(float tElapsedTime) override;
+	bool force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ftype) override;
+protected:
+	float timePassed = 0.0f;
+	bool magnetic = false;
+	bool hasExploded = false;
+	bool explode = false;
+
+	//enum State { eCantCollide, eArmed, eExplode } state = eInitialDelay; // consider doing this as a state machine
+};
+
+
+
+class AI_follow_user : public AI {
+public:
+	AI_follow_user(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
+	void update(float tElapsedTime) override;
+};

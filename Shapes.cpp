@@ -41,89 +41,6 @@ public:
 
 
 
-class AI_magbomb : public AI {
-
-public:
-	AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
-	// should explode when it collides with something
-	// pushes all objects around it away when it hits something (apply small damage to them as well, depending on distance)
-
-	void setup() override {
-		self->setMass(5.0f);
-		self->setCanBeDamaged(true);
-		self->setCanCollide(false);
-		self->setColor(olc::GREEN);
-	}
-
-	void update(float tElapsedTime) override {
-		timePassed += tElapsedTime;
-
-		if ((timePassed > 0.2f) && (timePassed < 0.3f)) self->setCanCollide(true); // can collide after 0.2 seconds (to avoid colliding with player)
-		else if ((timePassed > MB_TIME_TO_ARM) && (!magnetic)) { // called once when initial delay is over
-			magnetic = true;
-			self->setColor(olc::YELLOW);
-		} 
-
-		if ((timePassed > 0.5f) && (timePassed < 1.5f)) self->addForce(-0.01f, self->getMotionAngle()); // slow down 
-		else if ((timePassed > MB_LIFETIME) && (timePassed < MB_LIFETIME + 0.5f)) {
-			explode = true;
-
-			// Change shape to an expanding circle. A hack until i figure out a good way to draw from the AI class.
-			self->setFilled(false);
-			self->setStatic(true);
-			self->setCanCollide(false);
-			dynamic_cast<Circle*>(self.get())->setRadius(200.0f * (timePassed - MB_LIFETIME)*2);
-		}
-		else if (timePassed > MB_LIFETIME + 0.5f) {
-			self->setKillFlag();
-			//this->setDestroyFlag(true); // TODO: check if this is necessary. How? Print out number of AI's every frame or something.
-		}
-	}
-
-	bool force(float &px, float &py, float &magnitude, float &radius_of_influence, ForceType &ftype) override {
-		if (hasExploded) { return false; }
-
-		if (explode && !hasExploded) {
-			hasExploded = true;
-			self->setColor(olc::RED);
-			// apply force on all objects within radius of influence
-			px = self->getX();
-			py = self->getY();
-			magnitude = -10.0f;
-			radius_of_influence = 200.0f;
-			ftype = eExplosion;
-			return true;
-		}
-
-		if (!magnetic) return false;
-		px = self->getX();
-		py = self->getY();
-		magnitude = 0.02f;
-		radius_of_influence = 200.0f;
-		ftype = eMagnetic;
-		return true;
-	}
-protected:
-	float timePassed = 0.0f;
-	bool magnetic = false;
-	bool hasExploded = false;
-	bool explode = false;
-
-	//enum State { eCantCollide, eArmed, eExplode } state = eInitialDelay; // consider doing this as a state machine
-
-};
-
-
-class AI_follow_user : public AI {
-public:
-	AI_follow_user(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_;  external = external_; }
-	void update(float tElapsedTime) override {
-		float dx = external->getX() - self->getX();
-		float dy = external->getY() - self->getY();
-		float angle = atan2(dy, dx);
-		self->setAngle(angle);
-	}
-};
 
 // replace with something later.
 struct sEdge {
@@ -643,12 +560,48 @@ public:
 
 #include "collisions.h"
 
+
+
+	// treat dynamic collisions. Will work perfectly for circles, and super good enough for the rest.
+	// does not work for large objects, because the position is too different from point of collision 
+	void dc(Shape* s1, Shape* s2) {
+		float mass1 = s1->getMass();
+		float mass2 = s2->getMass();
+
+		float distance = sqrtf((s1->getX() - s2->getX()) * (s1->getX() - s2->getX()) + (s1->getY() - s2->getY()) * (s1->getY() - s2->getY()));
+
+		// Normal
+		float nx = (s2->getX() - s1->getX()) / distance;
+		float ny = (s2->getY() - s1->getY()) / distance;
+
+		// Tangent
+		float tx = -ny;
+		float ty = nx;
+
+		// Dot Product Tangent
+		float dpTan1 = s1->getVelocityX() * tx + s1->getVelocityY() * ty;
+		float dpTan2 = s2->getVelocityX() * tx + s2->getVelocityY() * ty;
+
+		// Dot Product Normal
+		float dpNorm1 = s1->getVelocityX() * nx + s1->getVelocityY() * ny;
+		float dpNorm2 = s2->getVelocityX() * nx + s2->getVelocityY() * ny;
+
+		// Conservation of momentum in 1D
+		float m1 = (dpNorm1 * (s1->getMass() - s2->getMass()) + 2.0f * s2->getMass() * dpNorm2) / (s1->getMass() + s2->getMass());
+		float m2 = (dpNorm2 * (s2->getMass() - s1->getMass()) + 2.0f * s1->getMass() * dpNorm1) / (s1->getMass() + s2->getMass());
+
+		// Update ball velocities
+		s1->setVelocity(tx * dpTan1 + nx * m1, ty * dpTan1 + ny * m1);
+		s2->setVelocity(tx * dpTan2 + nx * m2, ty * dpTan2 + ny * m2);
+
+	}
+
 	void checkCollisions2(float fElapsedTime) {
 		vector<shared_ptr<Shape>> shapes;
 
+		// Collect all shapes into a single vector. Sorted, to simplify collision detection.
 		// lines first, because they need to be treated differently
 		for (auto& line : sharedPtrLines) { if (line->getCanCollide()) shapes.push_back(line); }
-		// then the rest
 		for (auto& triangle : sharedPtrTriangles) { if (triangle->getCanCollide()) shapes.push_back(triangle); }
 		for (auto& rectangle : sharedPtrRectangles) { if (rectangle->getCanCollide()) shapes.push_back(rectangle); }
 		for (auto& circle : sharedPtrCircles) { if (circle->getCanCollide()) shapes.push_back(circle); }
@@ -667,8 +620,22 @@ public:
 
 			for (size_t j = i + 1; j < shapes.size(); j++) {
 				if (triangle) {
+
 					if (std::shared_ptr<Triangle> triangle2 = std::dynamic_pointer_cast<Triangle>(shapes[j])) {
 						// do triangle-triangle collision
+						if (TriangleTriangleCollision(triangle->worldCoordinates(), triangle2->worldCoordinates())) {
+							triangle->stepBack(fElapsedTime); // move one timestep back
+							triangle2->stepBack(fElapsedTime); // move one timestep back
+
+							dc(triangle.get(), triangle2.get());
+
+							if (triangle->getAI()) {
+								triangle->getAI()->trigger(triangle2, fElapsedTime);
+							}
+							if (triangle2->getAI()) {
+								triangle2->getAI()->trigger(triangle, fElapsedTime);
+							}
+						}
 					}
 					else if (std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[j])) {
 						// do triangle-rectangle collision
@@ -681,10 +648,10 @@ public:
 						// do triangle-circle collision
 						if (CircleTriangleCollision(circle->getStruct(), triangle->worldCoordinates())) {
 
-							circle->stepBack(fElapsedTime); // move out of the wall
-							circle->reverse(); // and bounce
-							triangle->stepBack(fElapsedTime); // move out of the wall
-							triangle->reverse(); // and bounce
+							circle->stepBack(fElapsedTime); // move one timestep back
+							triangle->stepBack(fElapsedTime); 
+
+							dc(circle.get(), triangle.get());
 
 							if (circle->getAI()) {
 								circle->getAI()->trigger(triangle, fElapsedTime);
@@ -706,6 +673,10 @@ public:
 							// Need to resolve collision properly, check if objects are static, modify accordingly, and do dynamic effects also.
 							circle->stepBack(fElapsedTime); // move out of the wall
 							circle->reverse(); // and bounce
+
+							// doesn't work because getX/Y of a rectangle is far away from the point of collision. Probably. Static resolving should detect that point.
+							//dc(rectangle.get(), circle.get());
+
 
 						}
 					}
@@ -730,33 +701,8 @@ public:
 							circle2->setX(circle2->getX() + overlap * (circle->getX() - circle2->getX()) / distance);
 							circle2->setY(circle2->getY() + overlap * (circle->getY() - circle2->getY()) / distance);
 
-							distance = sqrtf((circle->getX() - circle2->getX()) * (circle->getX() - circle2->getX()) + (circle->getY() - circle2->getY()) * (circle->getY() - circle2->getY()));
-
-							// Normal
-							float nx = (circle2->getX() - circle->getX()) / distance;
-							float ny = (circle2->getY() - circle->getY()) / distance;
-
-							// Tangent
-							float tx = -ny;
-							float ty = nx;
-
-							// Dot Product Tangent
-							float dpTan1 = circle->getVelocityX() * tx + circle->getVelocityY() * ty;
-							float dpTan2 = circle2->getVelocityX() * tx + circle2->getVelocityY() * ty;
-
-							// Dot Product Normal
-							float dpNorm1 = circle->getVelocityX() * nx + circle->getVelocityY() * ny;
-							float dpNorm2 = circle2->getVelocityX() * nx + circle2->getVelocityY() * ny;
-
-							// Conservation of momentum in 1D
-							float m1 = (dpNorm1 * (circle->getMass() - circle2->getMass()) + 2.0f * circle2->getMass() * dpNorm2) / (circle->getMass() + circle2->getMass());
-							float m2 = (dpNorm2 * (circle2->getMass() - circle->getMass()) + 2.0f * circle->getMass() * dpNorm1) / (circle->getMass() + circle2->getMass());
-
-							// Update ball velocities
-							circle->setVelocity(tx * dpTan1 + nx * m1, ty * dpTan1 + ny * m1);
-							circle2->setVelocity(tx * dpTan2 + nx * m2, ty * dpTan2 + ny * m2);
-
-
+							// Dynamic resolving of collision.
+							dc(circle.get(), circle2.get());
 						}
 					}
 				}
@@ -915,6 +861,77 @@ void AI_ninjarope::trigger(shared_ptr<Shape> other_object, float fElapsedTime) {
 
 bool AI_ninjarope::force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ftype) {
 	return false; // maybe this should be handled in update() .. 
+}
+
+// AI MAGBOMB //
+
+
+AI_magbomb::AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_; external = external_; }
+
+void AI_magbomb::setup() {
+	self->setMass(5.0f);
+	self->setCanBeDamaged(true);
+	self->setCanCollide(false);
+	self->setColor(olc::GREEN);
+}
+
+void AI_magbomb::update(float tElapsedTime) {
+	timePassed += tElapsedTime;
+
+	if ((timePassed > 0.2f) && (timePassed < 0.3f)) self->setCanCollide(true); // can collide after 0.2 seconds (to avoid colliding with player)
+	else if ((timePassed > MB_TIME_TO_ARM) && (!magnetic)) { // called once when initial delay is over
+		magnetic = true;
+		self->setColor(olc::YELLOW);
+	}
+
+	if ((timePassed > 0.5f) && (timePassed < 1.5f)) self->addForce(-0.01f, self->getMotionAngle()); // slow down 
+	else if ((timePassed > MB_LIFETIME) && (timePassed < MB_LIFETIME + 0.5f)) {
+		explode = true;
+
+		// Change shape to an expanding circle. A hack until i figure out a good way to draw from the AI class.
+		self->setFilled(false);
+		self->setStatic(true);
+		self->setCanCollide(false);
+		dynamic_cast<Circle*>(self.get())->setRadius(200.0f * (timePassed - MB_LIFETIME) * 2);
+	}
+	else if (timePassed > MB_LIFETIME + 0.5f) {
+		self->setKillFlag();
+		//this->setDestroyFlag(true); // TODO: check if this is necessary. How? Print out number of AI's every frame or something.
+	}
+}
+
+bool AI_magbomb::force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ftype) {
+	if (hasExploded) { return false; }
+
+	if (explode && !hasExploded) {
+		hasExploded = true;
+		self->setColor(olc::RED);
+		// apply force on all objects within radius of influence
+		px = self->getX();
+		py = self->getY();
+		magnitude = -10.0f;
+		radius_of_influence = 200.0f;
+		ftype = eExplosion;
+		return true;
+	}
+
+	if (!magnetic) return false;
+	px = self->getX();
+	py = self->getY();
+	magnitude = 0.02f;
+	radius_of_influence = 200.0f;
+	ftype = eMagnetic;
+	return true;
+}
+
+// AI follow user //
+
+AI_follow_user::AI_follow_user(shared_ptr<Shape> self_, shared_ptr<Shape> external_) { self = self_;  external = external_; }
+void AI_follow_user::update(float tElapsedTime) {
+	float dx = external->getX() - self->getX();
+	float dy = external->getY() - self->getY();
+	float angle = atan2(dy, dx);
+	self->setAngle(angle);
 }
 
 // ------------------- // 
