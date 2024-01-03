@@ -6,11 +6,12 @@
 // - Idea: tractor beam, but once aimed at an object, use arrows to control movement of that object, along axis of the beam - or just along x,y.. 
 // - Idea: max range on laser. Led it fade from red to background. Need to reimplement the line draw function.
 // - Idea: powerups! should be reasonably simple to do. Trigger checks other object, if it is user_controlled and colliding, then .. something.
-// - Idea: Mag deflector! from scorched earth.
+// - Idea: Mag deflector! from scorched earth. (may require multiple AI on each object, don't know if Hull is the right place for it)
 // - Make thrust level off, so it is strong when still, and zero at some point
 //		- Also, make it so that it is stronger when moving in opposite direction of thrust
 // - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
 // - Test object with gravity as a force, cover the whole world.
+// - Test that AI players can shoot lasers at me.
 // - Guided missile. Change user_controlled_shape and inputs.
 // - light/shadow (with possibility for multiple light sources. Holy slow...)
 // - Moving world

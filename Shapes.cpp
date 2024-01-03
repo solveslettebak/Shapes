@@ -9,15 +9,6 @@
 
 #include "constants.h"
 
-/*
-Effects:
-- gravity / motion. Different types: force relative to point, relative to horizontal/vertical, and probably more..
-- friction (air resistance)
-- damage (later: heat, piercing, explosion, etc)
-
-*/
-
-//enum ForceType { eGravity, eMagnetic, eFriction };
 
 using namespace std;
 
@@ -101,10 +92,38 @@ public:
 	void createVecEdges() {
 		vecEdges.clear();
 		for (auto& rectangle : sharedPtrRectangles) {
+			if (rectangle->getIsSeeThrough()) continue; 
+
 			vecEdges.push_back({ rectangle->getX(), rectangle->getY(), rectangle->getX() + rectangle->w, rectangle->getY() });
 			vecEdges.push_back({ rectangle->getX() + rectangle->w, rectangle->getY(), rectangle->getX() + rectangle->w, rectangle->getY() + rectangle->h });
 			vecEdges.push_back({ rectangle->getX() + rectangle->w, rectangle->getY() + rectangle->h, rectangle->getX(), rectangle->getY() + rectangle->h });
 			vecEdges.push_back({ rectangle->getX(), rectangle->getY() + rectangle->h, rectangle->getX(), rectangle->getY() });
+		}
+
+		for (auto& circle : sharedPtrCircles) {
+			if (circle->getIsSeeThrough()) continue;
+
+			float circX = circle->getX();
+			float circY = circle->getY();
+			float userX = user_controlled_shape->getX();
+			float userY = user_controlled_shape->getY();
+			float distance = sqrtf((circX - userX) * (circX - userX) + (circY - userY) * (circY - userY));
+			
+			float nx = (circX - userX) / distance;
+			float ny = (circY - userY) / distance;
+
+			float tx = -ny;
+			float ty = nx;
+
+			float radius = circle->r;
+
+			float p1x = (circX + nx) + tx * radius; // the + nx is there to push back the edge a bit, to put the center of the ball definitely on the visible side.
+			float p1y = (circY + ny) + ty * radius;
+
+			float p2x = (circX + nx) - tx * radius;
+			float p2y = (circY + ny) - ty * radius;
+
+			vecEdges.push_back({ p1x, p1y, p2x, p2y });
 		}
 	}
 
@@ -252,6 +271,7 @@ public:
 		if (force > 1.0f) force = 1.0f;
 		circle->addForce(1.5f + force * 5, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
+		circle->setIsSeeThrough(true);
 
 		shared_ptr<IHull> hull = make_shared<genericWeaponHull>(circle);
 		sharedPtrHulls.push_back(hull);
@@ -269,6 +289,7 @@ public:
 		sharedPtrCircles.push_back(circle);
 		circle->addForce(4.0f, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
+		circle->setIsSeeThrough(true);
 
 		shared_ptr<AI> ai = make_shared<AI_ninjarope>(circle, user_controlled_shape);
 		sharedPtrAI.push_back(ai);
@@ -343,7 +364,7 @@ public:
 		randomWall4->setColor(olc::BLUE);
 
 
-		createVecEdges();
+		//createVecEdges(); // moved to update per frame
 
 		return true;
 	}
@@ -365,7 +386,7 @@ public:
 			Draw(x, y-1, p);
 			Draw(x, y+1, p);
 		}
-
+		createVecEdges();
 		CalculateVisibilityPolygon(user_controlled_shape->getX(), user_controlled_shape->getY(), 200.0f);
 
 		shadowCastDraw();
@@ -506,21 +527,22 @@ public:
 				}
 				for (auto& circle : sharedPtrCircles) {
 					if (each->getSelf() == circle) continue;
+					if (!circle->getHull()) continue;
 					switch (ftype) {
-					case eExplosion:
-					case eMagnetic: {
-							float dx = px - circle->getX();
-							float dy = py - circle->getY();
-							float distance = sqrt(dx * dx + dy * dy);
-							if (distance < radius_of_influence) {
-								float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
-								circle->addForce(force, atan2(dy, dx));
-								each->getSelf()->addForce(-force, atan2(dy, dx));
-								if (ftype == eExplosion) circle->damage(-force * 100.0f);
+						case eExplosion:
+						case eMagnetic: {
+								float dx = px - circle->getX();
+								float dy = py - circle->getY();
+								float distance = sqrt(dx * dx + dy * dy);
+								if (distance < radius_of_influence) {
+									float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
+									circle->addForce(force, atan2(dy, dx));
+									each->getSelf()->addForce(-force, atan2(dy, dx));
+									if (ftype == eExplosion) circle->damage(-force * 100.0f);
+								}
+								break;
 							}
-							break;
 						}
-					}
 				}
 			}
 		}
@@ -605,8 +627,8 @@ public:
 
 
 
-	// treat dynamic collisions. Will work perfectly for circles, and super good enough for the rest.
-	// does not work for large objects, because the position is too different from point of collision 
+	// treat dynamic collisions. Will work perfectly for circles, and super good enough for other smallish objects.
+	// does not work for large objects, because the position is too different from point of collision. At least I think that's why.
 	void dc(Shape* s1, Shape* s2) {
 		float mass1 = s1->getMass();
 		float mass2 = s2->getMass();
@@ -698,9 +720,9 @@ public:
 
 							dc(circle.get(), triangle.get());
 
-							if (circle->getAI()) {
-								circle->getAI()->trigger(triangle, fElapsedTime);
-							}
+							// TODO: this should apply to both shapes... 
+							if (circle->getAI()) { circle->getAI()->trigger(triangle, fElapsedTime);}
+							if (triangle->getAI()) { triangle->getAI()->trigger(circle, fElapsedTime); }
 						}
 					}
 					// skip lines here.
@@ -743,6 +765,9 @@ public:
 
 							// Dynamic resolving of collision.
 							dc(circle.get(), circle2.get());
+
+							if (circle->getAI()) { circle->getAI()->trigger(circle2, fElapsedTime); }
+							if (circle2->getAI()) { circle2->getAI()->trigger(circle, fElapsedTime); }
 						}
 					}
 				}
@@ -894,7 +919,7 @@ void AI_ninjarope::update(float tElapsedTime) {
 	}
 }
 
-void AI_ninjarope::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
+void AI_ninjarope::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { 
 	locked_on_object = other_object;
 	locked = true;
 }

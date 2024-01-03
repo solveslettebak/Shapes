@@ -17,7 +17,8 @@ const float SHIP_MASS = 100.0f;
 const float LASER_DAMAGE = 100.0f;
 
 // Ninja rope constants 
-//const float NR_SPEED = 100.0f;
+//const float NR_FORCE = 100.0f;
+//const float NR_MASS = 1.0f;
 //const float NR_LENGTH_MIN = 100.0f;
 //const float NR_LENGTH_MAX = 200.0f;
 //const float NR_LIFETIME = 1.0f; // if it doesn't hit anything, it will disappear after this time.

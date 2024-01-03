@@ -52,6 +52,10 @@ public:
 	void setVisible(bool isVisible_) { isVisible = isVisible_; }
 	bool getIsInShadow() { return isInShadow; }
 	void setIsInShadow(bool isInShadow_) { isInShadow = isInShadow_; }
+	bool getIsSeeThrough() { return isSeeThrough; }
+	void setIsSeeThrough(bool isSeeThrough_) { isSeeThrough = isSeeThrough_; }
+
+
 
 
 
@@ -94,6 +98,8 @@ protected:
 	bool filled = true;
 	bool isVisible = true;
 	bool isInShadow = false;
+	bool isSeeThrough = false;
+
 	float x, y; // world coordinates
 
 	//shared_ptr<ITrigger> varTrigger;
