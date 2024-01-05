@@ -1,5 +1,14 @@
 #pragma once
 
+// World constants
+const int WORLD_WIDTH = 1800;
+const int WORLD_HEIGHT = 1600;
+const int VIEWPORT_WIDTH = 800;
+const int VIEWPORT_HEIGHT = 600;
+const int GRIDSIZE = 100;
+
+const bool SHADOWS = false;
+
 // Magbomb constants
 const float MB_TIME_TO_ARM =  1.0f;
 const float MB_LIFETIME    = 3.0f;

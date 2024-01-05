@@ -87,10 +87,29 @@ private:
 	vector<tuple<float, float, float>> vecVisibilityPolygonPoints;
 
 public:
+	float scrPosX = 0.0f;
+	float scrPosY = 0.0f;
+	float zoom = 1.0f;
+	//float viewPortWidth = ScreenWidth();
+	//float viewPortHeight = ScreenHeight();
+	float worldWidth = 1000.0f;
+	float worldHeight = 1000.0f;
+
+
+
+public:
 	World() { sAppName = "World"; }
 
 	void createVecEdges() {
+		// TODO: ignore objects off screen
+		// TODO: there's a glitch relating to fake edges when i'm near the edges of the world.
 		vecEdges.clear();
+
+		vecEdges.push_back({scrPosX, scrPosY, scrPosX + VIEWPORT_WIDTH, scrPosY});
+		vecEdges.push_back({ scrPosX + VIEWPORT_WIDTH, scrPosY, scrPosX + VIEWPORT_WIDTH, scrPosY + VIEWPORT_HEIGHT });
+		vecEdges.push_back({ scrPosX, scrPosY + VIEWPORT_HEIGHT, scrPosX + VIEWPORT_WIDTH, scrPosY + VIEWPORT_HEIGHT });
+		vecEdges.push_back({ scrPosX, scrPosY, scrPosX, scrPosY + VIEWPORT_HEIGHT });
+
 		for (auto& rectangle : sharedPtrRectangles) {
 			if (rectangle->getIsSeeThrough()) continue; 
 
@@ -200,6 +219,7 @@ public:
 	}
 
 	void shadowCastDraw() {
+		if (!SHADOWS) return;
 		auto it = unique(
 			vecVisibilityPolygonPoints.begin(),
 			vecVisibilityPolygonPoints.end(),
@@ -211,30 +231,24 @@ public:
 
 		//int nRaysCast2 = vecVisibilityPolygonPoints.size();
 		//DrawString(4, 4, "Rays Cast: " + to_string(nRaysCast) + "Rays Drawn: " + to_string(nRaysCast2));
-
+		float x1 = user_controlled_shape->getX() - scrPosX;
+		float y1 = user_controlled_shape->getY() - scrPosY;
 		if (vecVisibilityPolygonPoints.size() > 1) {
 			// draw triangle fan
 			for (int i = 0; i < vecVisibilityPolygonPoints.size() - 1; i++) {
-				FillTriangle(
-					user_controlled_shape->getX(),
-					user_controlled_shape->getY(),
-					get<1>(vecVisibilityPolygonPoints[i]),
-					get<2>(vecVisibilityPolygonPoints[i]),
-
-					get<1>(vecVisibilityPolygonPoints[i + 1]),
-					get<2>(vecVisibilityPolygonPoints[i + 1]), olc::DARK_BLUE);
+				float x2 = get<1>(vecVisibilityPolygonPoints[i]) - scrPosX;
+				float y2 = get<2>(vecVisibilityPolygonPoints[i]) - scrPosY;
+				float x3 = get<1>(vecVisibilityPolygonPoints[i + 1]) - scrPosX;
+				float y3 = get<2>(vecVisibilityPolygonPoints[i + 1]) - scrPosY;
+				FillTriangle(x1, y1, x2, y2, x3, y3, olc::DARK_BLUE);
 			}
-
-			FillTriangle(
-				user_controlled_shape->getX(),
-				user_controlled_shape->getY(),
-				get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
-				get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]),
-				get<1>(vecVisibilityPolygonPoints[0]),
-				get<2>(vecVisibilityPolygonPoints[0]), olc::DARK_BLUE);
+			float x2 = get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]) - scrPosX;
+			float y2 = get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]) - scrPosY;
+			float x3 = get<1>(vecVisibilityPolygonPoints[0]) - scrPosX;
+			float y3 = get<2>(vecVisibilityPolygonPoints[0]) - scrPosY;
+			FillTriangle(x1, y1, x2, y2, x3, y3, olc::DARK_BLUE);
 		}
 	}
-
 
 	void addRandomEnemy() {
 		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
@@ -244,12 +258,16 @@ public:
 		sharedPtrAI.push_back(enemy_AI);
 		//shape->setAI(enemy_AI); // not used yet
 
+		//World* world = this;
+		//enemy_AI->setWorld(world);  // Leaving this in creates "A breakpoint instruction (__debugbreak() statement or a similar call) was executed" when i exit the game
+
 		shared_ptr<IHull> hull = make_shared<evilTriangleHull>(shape);
 		sharedPtrHulls.push_back(hull);
 		shape->setHull(hull);
 		shape->setCanBeDamaged(true);
 
 	}
+
 
 	std::shared_ptr<Shape> createPlayer() {
 		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, 50, 50, olc::RED);
@@ -300,19 +318,22 @@ public:
 	}
 
 	std::shared_ptr<Shape> createBall() {
-		shared_ptr<Circle> circle = make_shared<Circle>(rand() % ScreenWidth(), rand() % ScreenHeight(), rand() % 10 + 5.0f, olc::GREY);
+		float r = rand() % 10 + 5.0f;
+		shared_ptr<Circle> circle = make_shared<Circle>(rand() % ScreenWidth(), rand() % ScreenHeight(), r, olc::GREY);
 		sharedPtrCircles.push_back(circle);
+		circle->setMass(3.14f * r * r);
 		return circle;
 	}
 
-	std::shared_ptr<Line> createLaser() {
+
+	std::shared_ptr<Line> createLaser(shared_ptr<Shape> shape) {
 		shared_ptr<Line> laser;
-		laser = make_shared<Line>(user_controlled_shape->getX(), user_controlled_shape->getY());
-		laser->setAngle(user_controlled_shape->getAngle());
+		laser = make_shared<Line>(shape->getX(), shape->getY());
+		laser->setAngle(shape->getAngle());
 		laser->setColor(olc::RED);
 		sharedPtrLines.push_back(laser);
 
-		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, user_controlled_shape);
+		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, shape);
 		sharedPtrAI.push_back(ai);
 		laser->setAI(ai);
 
@@ -338,6 +359,62 @@ public:
 		return aim;
 	}
 
+	void DrawTriangle(sTriangle t, olc::Pixel color) { FillTriangle(int(t.x1), int(t.y1), int(t.x2), int(t.y2), int(t.x3), int(t.y3), color); }
+
+	void render() {
+
+		// Screen position
+		scrPosX = user_controlled_shape->getX() - VIEWPORT_WIDTH / 2.0f;
+		scrPosY = user_controlled_shape->getY() - VIEWPORT_HEIGHT / 2.0f;
+		if (scrPosX < 0) scrPosX = 0;
+		if (scrPosY < 0) scrPosY = 0;
+		if (scrPosX > WORLD_WIDTH - VIEWPORT_WIDTH) scrPosX = WORLD_WIDTH - VIEWPORT_WIDTH;
+		if (scrPosY > WORLD_HEIGHT - VIEWPORT_HEIGHT) scrPosY = WORLD_HEIGHT - VIEWPORT_HEIGHT;
+
+		// Grid
+		olc::Pixel gridcolor = olc::Pixel(0, 0, 100);
+		for (int i = scrPosX; i < scrPosX + VIEWPORT_WIDTH; i++) { if (i % int(GRIDSIZE * zoom) == 0) DrawLine(i - scrPosX, 0, i - scrPosX, VIEWPORT_HEIGHT, gridcolor); }
+		for (int i = scrPosY; i < scrPosY + VIEWPORT_HEIGHT; i++) { if (i % int(GRIDSIZE * zoom) == 0) DrawLine(0, i - scrPosY, VIEWPORT_WIDTH, i - scrPosY, gridcolor); }
+
+
+		for (auto& each : sharedPtrTriangles) {
+			if (each->getIsInShadow()) continue;
+			if (each->getFilled()) {
+				sTriangle t = each->worldCoordinates();
+				FillTriangle(int(t.x1 - scrPosX), int(t.y1 - scrPosY), int(t.x2 - scrPosX), int(t.y2 - scrPosY), int(t.x3 - scrPosX), int(t.y3 - scrPosY), each->getColor());
+			}
+			else {
+				sTriangle shape = each->worldCoordinates();
+				DrawLine(int(shape.x1 - scrPosX), int(shape.y1 - scrPosY), int(shape.x2 - scrPosX), int(shape.y2 - scrPosY), each->getColor());
+				DrawLine(int(shape.x2 - scrPosX), int(shape.y2 - scrPosY), int(shape.x3 - scrPosX), int(shape.y3 - scrPosY), each->getColor());
+				DrawLine(int(shape.x3 - scrPosX), int(shape.y3 - scrPosY), int(shape.x1 - scrPosX), int(shape.y1 - scrPosY), each->getColor());
+			}
+			if (each->getHull()) { // TODO: add "display health" property to shape.
+				float health = each->getHull()->getHealth();
+				FillRect(int(each->getX() - scrPosX) - 15, int(each->getY() - scrPosY) - 15, int(30.0f * health), 5, olc::Pixel(255 * (1.0f - health), 255 * health, 0));
+			}
+		}
+		for (auto& each : sharedPtrRectangles) {
+			if (each->getFilled())
+				FillRect(int(each->getX() - scrPosX), int(each->getY() - scrPosY), int(each->w), int(each->h), each->getColor());
+			else
+				DrawRect(int(each->getX() - scrPosX), int(each->getY() - scrPosY), int(each->w), int(each->h), each->getColor());
+		}
+		for (auto& each : sharedPtrLines) {
+			if (each->getVisible())
+				DrawLine(int(each->getX() - scrPosX), int(each->getY() - scrPosY), int(each->getX2() - scrPosX), int(each->getY2() - scrPosY), each->getColor());
+		}
+		for (auto& each : sharedPtrCircles) {
+			if (each->getIsInShadow()) continue;
+			if (each->getVisible()) {
+				if (each->getFilled())
+					FillCircle(int(each->getX() - scrPosX), int(each->getY() - scrPosY), int(each->r), each->getColor());
+				else
+					DrawCircle(int(each->getX() - scrPosX), int(each->getY() - scrPosY), int(each->r), each->getColor());
+			}
+		}
+	}
+
 	bool OnUserCreate() override {
 
 		user_controlled_shape = createPlayer();
@@ -345,10 +422,10 @@ public:
 		for (int i = 0; i < 20; i++) addRandomEnemy();
 		for (int i = 0; i < 20; i++) createBall();
 
-		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, ScreenHeight()-20, olc::WHITE);
-		shared_ptr<Rect> rightWall = make_shared<Rect>(ScreenWidth()-15, 10, 5, ScreenHeight()-20, olc::WHITE);
-		shared_ptr<Rect> topWall = make_shared<Rect>(10, 10, ScreenWidth()-20, 5, olc::WHITE);
-		shared_ptr<Rect> bottomWall = make_shared<Rect>(10, ScreenHeight()-15, ScreenWidth()-20, 5, olc::WHITE);
+		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, WORLD_HEIGHT - 20, olc::WHITE);
+		shared_ptr<Rect> rightWall = make_shared<Rect>(WORLD_WIDTH - 15, 10, 5, WORLD_HEIGHT - 20, olc::WHITE);
+		shared_ptr<Rect> topWall = make_shared<Rect>(10, 10, WORLD_WIDTH - 20, 5, olc::WHITE);
+		shared_ptr<Rect> bottomWall = make_shared<Rect>(10, WORLD_HEIGHT - 15, WORLD_WIDTH - 20, 5, olc::WHITE);
 		sharedPtrRectangles.push_back(leftWall);
 		sharedPtrRectangles.push_back(rightWall);
 		sharedPtrRectangles.push_back(topWall);
@@ -369,22 +446,27 @@ public:
 		return true;
 	}
 
+	int getRandomNumber() {
+		return 4; // chosen by fair dice roll.
+				  // guaranteed to be random.
+	}
 
-
-	bool OnUserUpdate(float fElapsedTime) override {
+	bool OnUserUpdate(float fElapsedTime) override {	
 		Clear(olc::BLACK);
 
-		srand(10);
+		srand(getRandomNumber());
 
-		for (int i = 0; i < 200; i++) {
-			int x = int(rand() % ScreenWidth());
-			int y = int(rand() % ScreenHeight());
+		float starMotionFactor = 0.5f;
+
+		for (int i = 0; i < 400; i++) {
+			int x = int(rand() % WORLD_WIDTH);
+			int y = int(rand() % WORLD_HEIGHT);
 			olc::Pixel p = olc::Pixel(rand() % 255, rand() % 255, rand() % 255);
-			Draw(x, y, p);
-			Draw(x-1, y, p);
-			Draw(x+1, y, p);
-			Draw(x, y-1, p);
-			Draw(x, y+1, p);
+			Draw(x   - scrPosX * starMotionFactor, y   - scrPosY * starMotionFactor, p);
+			Draw(x-1 - scrPosX * starMotionFactor, y   - scrPosY * starMotionFactor, p);
+			Draw(x+1 - scrPosX * starMotionFactor, y   - scrPosY * starMotionFactor, p);
+			Draw(x   - scrPosX * starMotionFactor, y-1 - scrPosY * starMotionFactor, p);
+			Draw(x   - scrPosX * starMotionFactor, y+1 - scrPosY * starMotionFactor, p);
 		}
 		createVecEdges();
 		CalculateVisibilityPolygon(user_controlled_shape->getX(), user_controlled_shape->getY(), 200.0f);
@@ -397,8 +479,10 @@ public:
 		// TODO: move user controls to AI's
 
 		if (GetKey(olc::Key::ESCAPE).bPressed) return false;
+		if (GetKey(olc::Key::NP_ADD).bPressed) zoom += 0.1f;
+		if (GetKey(olc::Key::NP_SUB).bPressed) zoom -= 0.1f;
 
-		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser();
+		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser(user_controlled_shape);
 		if (GetKey(olc::Key::B).bReleased) user_controlled_laser->setKillFlag();
 
 		if (GetKey(olc::Key::S).bPressed) {
@@ -464,42 +548,7 @@ public:
 
 		// ---- DRAW ----- //
 
-		for (auto& each : sharedPtrTriangles)  { 
-			if (each->getIsInShadow()) continue; 
-			if (each->getFilled()) 
-				DrawTriangle(each->worldCoordinates(), each->getColor()); 
-			else {
-				sTriangle shape = each->worldCoordinates();
-				DrawLine(int(shape.x1), int(shape.y1), int(shape.x2), int(shape.y2), each->getColor());
-				DrawLine(int(shape.x2), int(shape.y2), int(shape.x3), int(shape.y3), each->getColor());
-				DrawLine(int(shape.x3), int(shape.y3), int(shape.x1), int(shape.y1), each->getColor());
-			}
-			if (each->getHull()) { // TODO: add "display health" property to shape.
-				float health = each->getHull()->getHealth();
-				FillRect(int(each->getX()) - 15, int(each->getY()) - 15, int(30.0f * health), 5, olc::Pixel(255 * (1.0f - health), 255 * health, 0));
-			}
-		}
-		for (auto& each : sharedPtrRectangles) { 
-			if (each->getFilled()) 
-				FillRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor()); 
-			else 
-				DrawRect(int(each->getX()), int(each->getY()), int(each->w), int(each->h), each->getColor());
-		}
-		for (auto& each : sharedPtrLines) { 
-			if (each->getVisible())
-				DrawLine(int(each->getX()), int(each->getY()), int(each->getX2()), int(each->getY2()), each->getColor()); 
-		}
-		for (auto& each : sharedPtrCircles) { 
-			if (each->getIsInShadow()) continue;
-			if (each->getVisible()) {
-				if (each->getFilled())
-					FillCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());
-				else
-					DrawCircle(int(each->getX()), int(each->getY()), int(each->r), each->getColor());
-
-				//DrawCircle(int(each->getX()), int(each->getY()), 200, olc::Pixel(50, 50, 155));
-			}
-		}
+		render();
 
 		// ----- EFFECTS ----- //
 		
@@ -589,7 +638,6 @@ public:
 		return true;
 	}
 
-	void DrawTriangle(sTriangle t, olc::Pixel color) { FillTriangle(int(t.x1), int(t.y1), int(t.x2), int(t.y2), int(t.x3), int(t.y3), color); }
 
 
 	void checkIfInShadow(vector<shared_ptr<Shape>> vecShapes) {
@@ -852,8 +900,9 @@ void AI_aim::update(float tElapsedTime) {
 		}
 
 	if (locked) {
-		world->DrawRect(int(locked_on_object->getX()) - 15, int(locked_on_object->getY()) - 15, 30, 30, olc::Pixel(255, 255, 255));
-		world->DrawRect(int(locked_on_object->getX()) - 14, int(locked_on_object->getY()) - 14, 28, 28, olc::Pixel(255, 255, 255));
+		// TODO: call some World drawrect function instead, so it can do scaling etc correctly, without AI needing to care about that.
+		world->DrawRect(int(locked_on_object->getX() - world->scrPosX) - 15, int(locked_on_object->getY() - world->scrPosY) - 15, 30, 30, olc::Pixel(255, 255, 255));
+		world->DrawRect(int(locked_on_object->getX() - world->scrPosX) - 14, int(locked_on_object->getY() - world->scrPosY) - 14, 28, 28, olc::Pixel(255, 255, 255));
 	}
 }
 
@@ -899,7 +948,10 @@ void AI_ninjarope::setup() {
 void AI_ninjarope::update(float tElapsedTime) {
 	timePassed += tElapsedTime;
 
-	if ((timePassed > 0.2f) && (timePassed < 0.25f)) self->setCanCollide(true); // TODO: need to check a flag instead here. This can get screwed in several edge cases.
+	if ((timePassed > 0.2f) && (timePassed < 0.25f)) {
+		self->setCanCollide(true); // TODO: need to check a flag instead here. This can get screwed in several edge cases.
+		magnetic = true;
+	}
 	if (!locked)
 		if (timePassed > 1.0f) self->setKillFlag(); // kill after 1 second if not locked on anything
 
@@ -915,7 +967,12 @@ void AI_ninjarope::update(float tElapsedTime) {
 		self->setVisible(false);
 		self->setCanCollide(false);
 		self->setStatic(true);
-		world->DrawLine(int(locked_on_object->getX()), int(locked_on_object->getY()), int(external->getX()), int(external->getY()), olc::Pixel(255, 255, 255));
+		world->DrawLine(int(locked_on_object->getX() - world->scrPosX), int(locked_on_object->getY() - world->scrPosY), 
+			int(external->getX() - world->scrPosX), int(external->getY() - world->scrPosY), olc::Pixel(255, 255, 255));
+	}
+	else {
+		world->DrawLine(int(external->getX() - world->scrPosX), int(external->getY() - world->scrPosY), 
+						int(self->getX() - world->scrPosX), int(self->getY() - world->scrPosY), olc::Pixel(255, 255, 255));
 	}
 }
 
@@ -925,7 +982,14 @@ void AI_ninjarope::trigger(shared_ptr<Shape> other_object, float fElapsedTime) {
 }
 
 bool AI_ninjarope::force(float& px, float& py, float& magnitude, float& radius_of_influence, ForceType& ftype) {
-	return false; // maybe this should be handled in update() .. 
+	if (locked) return false; // maybe this should be handled in update() .. 
+	if (!magnetic) return false;
+	px = self->getX();
+	py = self->getY();
+	magnitude = 0.50f;
+	radius_of_influence = 50.0f;
+	ftype = eMagnetic;
+	return true;
 }
 
 // AI MAGBOMB //
@@ -997,6 +1061,25 @@ void AI_follow_user::update(float tElapsedTime) {
 	float dy = external->getY() - self->getY();
 	float angle = atan2(dy, dx);
 	self->setAngle(angle);
+
+
+	// TODO: This update() function is called while iterating the vector<shared_ptr<AI>>. createLaser() also created a new AI into the same vector. This is bad.
+/*	timePassed += tElapsedTime;
+
+	if ((!shooting) && (timePassed > 1.0f)) {
+		shooting = true;
+		AI_controlled_laser = world->createLaser(self);
+		//AI_controlled_laser->setAI(make_shared<AI_laser>(AI_controlled_laser, external));
+	}
+
+	if (shooting) {
+		if (rand() % 20 == 0) {
+			//shooting = false;
+			//AI_controlled_laser->setKillFlag();
+		}
+	}*/
+
+
 }
 
 // ------------------- // 

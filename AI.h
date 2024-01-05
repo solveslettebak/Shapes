@@ -55,6 +55,7 @@ public:
 class AI_ninjarope : public AI {
 protected:
 	bool locked = false;
+	bool magnetic = false;
 	shared_ptr<Shape> locked_on_object;
 	float timePassed = 0.0f;
 public:
@@ -88,6 +89,10 @@ protected:
 
 
 class AI_follow_user : public AI {
+protected:
+	float timePassed = 0.0f;
+	bool shooting = false;
+	shared_ptr<Shape> AI_controlled_laser;
 public:
 	AI_follow_user(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
 	void update(float tElapsedTime) override;
