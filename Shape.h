@@ -70,9 +70,9 @@ public:
 	olc::Pixel getColor() { return color; }
 	shared_ptr<AI> getAI() { return ai; }
 
-	void updatePosition() { 
+	void updatePosition(float fElapsedTime) { 
 		if (isStatic) { vx = 0.0f; vy = 0.0f; return;}
-		else { x += vx; y += vy; }
+		else { x += vx * fElapsedTime; y += vy * fElapsedTime; }
 	}
 	float getMotionAngle() {
 		float speed = sqrt(vx * vx + vy * vy);

@@ -2,25 +2,23 @@
 // - Adding new AIs from the AI's own update() will mess up the iterator. Need to look at how i create new stuff, and create a stack of new stuff to add after the loop.
 	- if update() is the only place this can happen then i can mitigate easy enough i guess
 	- can actually do everything apart from the push_back in update, and then do that after the loop. that should work.
+
 // - Find out why it is not framerate independent. fix that. the game is very slow at less than 300ish fps.
 // - Visibility edges: disregard objects outside of screen. Use rectangle-rectangle collision detection.
 // - multiple light sources (realistically maximum 1 other source due to speed, but support for more)
-// - Grid
+// - expand render(), to a separate class or whatever, but AI and anything should be able to draw stuff ad-hoc, but into a zoomed and translated world. 
 
-// - Magballs, or another similar weapon: make them sticky when they hit metal..? Highly inelastic collision when hitting enemy objects. Fully elastic on asteroids. 
-//		- Expand the Hull class with this kind of stuff. Add money of some type, let user buy new hulls, weapons, etc. - "ceramic hull" (non-magnetic).. etc
-// - Idea: tractor beam, but once aimed at an object, use arrows to control movement of that object, along axis of the beam - or just along x,y.. 
-// - Idea: max range on laser. Led it fade from red to background. Need to reimplement the line draw function.
-// - Idea: powerups! should be reasonably simple to do. Trigger checks other object, if it is user_controlled and colliding, then .. something.
-// - Idea: Mag deflector! from scorched earth. (may require multiple AI on each object, don't know if Hull is the right place for it)
-// - Ninjarope: add ship speed to anchor speed. Consider shooting-force same as with mag ball.
-// - Make thrust level off, so it is strong when still, and zero at some point
-//		- Also, make it so that it is stronger when moving in opposite direction of thrust
+
 // - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
 // - Test object with gravity as a force, cover the whole world.
 // - Test that AI players can shoot lasers at me.
 // - Guided missile. Change user_controlled_shape and inputs.
 // - Zoom in and out. Do at the same time as moving world.
+// - Once i have framerate etc figure out: add a button to slow down time. Option to compensate by higher speed after. (time-warp facilitator powerup..?)
+	// - get that sound from SlowMoGuys when they slow down time.
+// - proper bounce from walls
+// - handle large triangles and circles (bounce, ninja rope, ..) - think circles as walls. not sure how that will work. test it.
+// - ninja rope latch on walls (in the correct place) (will have same problem for other larger objects)
 // - Starry background done. Do sprite as background, like in some olc video..?
 // - Quad tree
 // - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
@@ -30,7 +28,22 @@
 // - Force-class maybe? instead of the enum solution. an AI can then add multiple forces and types of forces
 // - AI: flee, follow, patrol, attack, defend, random, etc
 
+
+Gameplay ideas/tasks:
+// - Magballs, or another similar weapon: make them sticky when they hit metal..? Highly inelastic collision when hitting enemy objects. Fully elastic on asteroids. 
+//		- Expand the Hull class with this kind of stuff. Add money of some type, let user buy new hulls, weapons, etc. - "ceramic hull" (non-magnetic).. etc
+// - Idea: tractor beam, but once aimed at an object, use arrows to control movement of that object, along axis of the beam - or just along x,y.. 
+// - Idea: max range on laser. Led it fade from red to background. Need to reimplement the line draw function.
+// - Idea: powerups! should be reasonably simple to do. Trigger checks other object, if it is user_controlled and colliding, then .. something.
+// - Idea: Mag deflector! from scorched earth. (may require multiple AI on each object, don't know if Hull is the right place for it)
+// - Ninjarope: add ship speed to anchor speed. Consider shooting-force same as with mag ball.
+// - Make thrust level off, so it is strong when still, and zero at some point
+//		- Also, make it so that it is stronger when moving in opposite direction of thrust
+// - Exhaust/flames etc. 
+
 // Notes for next version:
-// - Obj should come back, and have a shape. Shape refers back to Obj with an owner field. Not sure why I didn't do that in the end..
+// - determine if obj class should come back, or shapes is good enough.
 // - Need to figure out how objects should be talking to each other. And structure everything neatly from the start. Probably all objects just talk to World, somehow.
 // - draw up some oop diagrams, and figure out how to structure everything.
+
+

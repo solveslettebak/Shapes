@@ -287,7 +287,7 @@ public:
 		shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::GREEN);
 		sharedPtrCircles.push_back(circle);
 		if (force > 1.0f) force = 1.0f;
-		circle->addForce(1.5f + force * 5, user_controlled_shape->getAngle());
+		circle->addForce(MB_FIRING_FORCE_MINIMUM + force * MB_FIRING_FORCE_MULTIPLIER, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
 		circle->setIsSeeThrough(true);
 
@@ -305,7 +305,7 @@ public:
 	shared_ptr<Circle> createNinjaRope() {
 		shared_ptr<Circle> circle = make_shared<Circle>(user_controlled_shape->getX(), user_controlled_shape->getY(), 5.0f, olc::WHITE);
 		sharedPtrCircles.push_back(circle);
-		circle->addForce(4.0f, user_controlled_shape->getAngle());
+		circle->addForce(NR_FIRING_FORCE, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
 		circle->setIsSeeThrough(true);
 
@@ -479,8 +479,8 @@ public:
 		// TODO: move user controls to AI's
 
 		if (GetKey(olc::Key::ESCAPE).bPressed) return false;
-		if (GetKey(olc::Key::NP_ADD).bPressed) zoom += 0.1f;
-		if (GetKey(olc::Key::NP_SUB).bPressed) zoom -= 0.1f;
+		if (GetKey(olc::Key::NP_ADD).bPressed) { zoom += 0.1f; if (zoom > 2.0f) zoom = 2.0f; }
+		if (GetKey(olc::Key::NP_SUB).bPressed) { zoom -= 0.1f; if (zoom < 0.2f) zoom = 0.2f; }
 
 		if (GetKey(olc::Key::B).bPressed) user_controlled_laser = createLaser(user_controlled_shape);
 		if (GetKey(olc::Key::B).bReleased) user_controlled_laser->setKillFlag();
@@ -490,6 +490,12 @@ public:
 			user_controlled_aim = createAim();
 		}
 		if (GetKey(olc::Key::S).bReleased) dynamic_cast<AI_aim*>(user_controlled_aim->getAI().get())->key_released();
+
+		// TODO: figure out wtf i'm doing here, and then do it. Goal: make it know when the ninjarope is dead, so a single press creates a new one.
+		if (user_controlled_ninjarope != nullptr)
+			if (user_controlled_ninjarope->getKillFlag()) {
+				DrawCircle(user_controlled_shape->getX() - scrPosX, user_controlled_shape->getY() - scrPosY, 7.0f, olc::WHITE);
+			}
 
 		if (GetKey(olc::Key::D).bPressed) {
 			if (user_controlled_ninjarope != nullptr) {
@@ -505,16 +511,13 @@ public:
 		if (GetKey(olc::Key::A).bPressed) { magballForce = 0.0f; magballCharging = true; }
 		if ((GetKey(olc::Key::A).bHeld) && (magballCharging == true)) {
 			magballForce += fElapsedTime; 
-			FillRect(int(user_controlled_shape->getX()) - 15, int(user_controlled_shape->getY()) + 15, int(30.0f * magballForce), 5, olc::Pixel(255 * (1.0f - magballForce), 255 * magballForce, 0));
+			FillRect(int(user_controlled_shape->getX() - scrPosX) - 15, int(user_controlled_shape->getY() - scrPosY) + 15, int(30.0f * magballForce), 5, olc::Pixel(255 * (1.0f - magballForce), 255 * magballForce, 0));
 		}
 		if (((GetKey(olc::Key::A).bReleased) || (magballForce > 1.0f)) && (magballCharging == true)) {
 			createMagbomb(magballForce); 
 			magballCharging = false; 
 			magballForce = 0.0f; 
 		}
-			
-			
-
 
 		if (GetKey(olc::Key::LEFT).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_FAST * fElapsedTime); }
 		if (GetKey(olc::Key::PGUP).bHeld)  { user_controlled_shape->rotate(- SHIP_ROTATE_SPEED_SLOW * fElapsedTime); }
@@ -524,26 +527,12 @@ public:
 
 		// ----- AI and Hull updates ----- //
 
-		for (auto& each : sharedPtrAI) { 
-			if (each->getDestroyFlag()) {
-				sharedPtrAI.erase(std::remove(sharedPtrAI.begin(), sharedPtrAI.end(), each), sharedPtrAI.end());
-				break; // find a better way. see the other delete stuff thingy
-			}
-			else { each->update(fElapsedTime); }
-		}
-		for (auto& each : sharedPtrHulls) {
-			if (each->getDestroyFlag()) {
-				sharedPtrHulls.erase(std::remove(sharedPtrHulls.begin(), sharedPtrHulls.end(), each), sharedPtrHulls.end());
-				break; // find a better way. see the other delete stuff thingy
-			}
-			else { each->update(fElapsedTime); }
-		}
-
+		for (auto& each : sharedPtrAI)    if (!each->getDestroyFlag()) each->update(fElapsedTime); 
+		for (auto& each : sharedPtrHulls) if (!each->getDestroyFlag()) each->update(fElapsedTime); 
+		
 		// ----- COLLISION ----- //
 
 		checkCollisions2(fElapsedTime);
-
-
 
 
 		// ---- DRAW ----- //
@@ -557,46 +546,17 @@ public:
 			float px,py,magnitude,radius_of_influence;
 			ForceType ftype;
 			if (each->force(px, py, magnitude, radius_of_influence, ftype)) {
-				for (auto& triangle : sharedPtrTriangles) { // TODO: this may get tricky when i include all objects, not just triangles. Counting same twice etc.
-					if (each->getSelf() == triangle) continue; // don't apply force on self
-					switch (ftype) {
-						case eExplosion:
-						case eMagnetic: 
-							float dx = px - (triangle->centroidX() + triangle->getX());
-							float dy = py - (triangle->centroidY() + triangle->getY());
-							float distance = sqrt(dx * dx + dy * dy);
-							if (distance < radius_of_influence) {
-								float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
-								triangle->addForce(force, atan2(dy, dx));
-								each->getSelf()->addForce(-force, atan2(dy, dx));
-								if (ftype == eExplosion) triangle->damage(-force * 10.0f);
-							}
-							break;	
-					}
+				// TODO: this may get tricky when i include all objects, not just triangles. Counting same twice etc.
+				for (auto& triangle : sharedPtrTriangles) { 
+					handleForce(each, triangle, px, py, magnitude, radius_of_influence, ftype);
 				}
 				for (auto& circle : sharedPtrCircles) {
-					if (each->getSelf() == circle) continue;
-					if (!circle->getHull()) continue;
-					switch (ftype) {
-						case eExplosion:
-						case eMagnetic: {
-								float dx = px - circle->getX();
-								float dy = py - circle->getY();
-								float distance = sqrt(dx * dx + dy * dy);
-								if (distance < radius_of_influence) {
-									float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
-									circle->addForce(force, atan2(dy, dx));
-									each->getSelf()->addForce(-force, atan2(dy, dx));
-									if (ftype == eExplosion) circle->damage(-force * 100.0f);
-								}
-								break;
-							}
-						}
+					handleForce(each, circle, px, py, magnitude, radius_of_influence, ftype);
 				}
 			}
 		}
 
-		// apply summed up force on each shape
+		// apply summed up force on each shape (addForce() has no effect until this is called)
 		for (auto& triangle : sharedPtrTriangles) { triangle->applyForce(); }
 		for (auto& circle : sharedPtrCircles) { circle->applyForce(); }
 
@@ -629,15 +589,41 @@ public:
 			if (each->getDestroyFlag()) {
 				sharedPtrAI.erase(std::remove(sharedPtrAI.begin(), sharedPtrAI.end(), each), sharedPtrAI.end());
 				break;}}
+		// Hulls
+		for (auto& each : sharedPtrHulls) {
+			if (each->getDestroyFlag()) {
+				sharedPtrHulls.erase(std::remove(sharedPtrHulls.begin(), sharedPtrHulls.end(), each), sharedPtrHulls.end());
+				break; }}
 
 		// ----- MOVEMENT ----- //
 
-		for (auto& shape : sharedPtrCircles) { shape->updatePosition();}
-		for (auto& shape : sharedPtrTriangles) { shape->updatePosition(); }
+		for (auto& shape : sharedPtrCircles) { shape->updatePosition(fElapsedTime);}
+		for (auto& shape : sharedPtrTriangles) { shape->updatePosition(fElapsedTime); }
 
 		return true;
 	}
 
+	// if an ai controller emits a force, it is handled here. Called from main loop in World.
+	void handleForce(shared_ptr<AI> ai, shared_ptr<Shape> shape, float px, float py, float magnitude, float radius_of_influence, ForceType ftype) {
+		if (ai->getSelf() == shape) return;
+		if (!shape->getHull()) return;
+		switch (ftype) {
+		case eExplosion:
+		case eMagnetic: {
+			float dx = px - shape->getX();
+			float dy = py - shape->getY();
+			float distance = sqrt(dx * dx + dy * dy);
+			if (distance < radius_of_influence) {
+				float force = magnitude * (radius_of_influence - distance) / radius_of_influence;
+				shape->addForce(force, atan2(dy, dx));
+				ai->getSelf()->addForce(-force, atan2(dy, dx));
+				if (ftype == eExplosion) 
+					shape->damage(-force * 10.0f);
+			}
+			break;
+		}
+		}
+	}
 
 
 	void checkIfInShadow(vector<shared_ptr<Shape>> vecShapes) {
@@ -1004,8 +990,8 @@ void AI_magbomb::setup() {
 	self->setColor(olc::GREEN);
 }
 
-void AI_magbomb::update(float tElapsedTime) {
-	timePassed += tElapsedTime;
+void AI_magbomb::update(float fElapsedTime) {
+	timePassed += fElapsedTime;
 
 	if ((timePassed > 0.2f) && (timePassed < 0.3f)) self->setCanCollide(true); // can collide after 0.2 seconds (to avoid colliding with player)
 	else if ((timePassed > MB_TIME_TO_ARM) && (!magnetic)) { // called once when initial delay is over
@@ -1013,7 +999,7 @@ void AI_magbomb::update(float tElapsedTime) {
 		self->setColor(olc::YELLOW);
 	}
 
-	if ((timePassed > 0.5f) && (timePassed < 1.5f)) self->addForce(-0.01f, self->getMotionAngle()); // slow down 
+	if ((timePassed > 0.5f) && (timePassed < 1.5f)) self->addForce(-0.01f * fElapsedTime, self->getMotionAngle()); // slow down 
 	else if ((timePassed > MB_LIFETIME) && (timePassed < MB_LIFETIME + 0.5f)) {
 		explode = true;
 
