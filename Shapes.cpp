@@ -439,8 +439,8 @@ public:
 
 		user_controlled_shape = createPlayer();
 
-		for (int i = 0; i < 0; i++) addRandomEnemy();
-		for (int i = 0; i < 0; i++) createBall();
+		for (int i = 0; i < 20; i++) addRandomEnemy();
+		for (int i = 0; i < 20; i++) createBall();
 
 		shared_ptr<Rect> leftWall = make_shared<Rect>(10, 10, 5, WORLD_HEIGHT - 20, olc::WHITE);
 		shared_ptr<Rect> rightWall = make_shared<Rect>(WORLD_WIDTH - 15, 10, 5, WORLD_HEIGHT - 20, olc::WHITE);
