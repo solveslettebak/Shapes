@@ -9,6 +9,9 @@ class World;
 
 #include <memory>
 
+/*
+* A shape can have an AI. Often another shape is involved also, which has its own AI too. Example: Player has AI, creates laser shape, which has a laser AI
+*/
 
 class AI {
 public:
@@ -26,8 +29,11 @@ public:
 	//void setWorld(shared_ptr<World> world_) { world = world_; }
 	void setWorld(World* world_) { world = shared_ptr<World>(world_); }
 	shared_ptr<World> getWorld() { return world; }
+
+	shared_ptr<Shape> getOwner() { return external; }
+	shared_ptr<Shape> getShape() { return self; }
 protected:
-	shared_ptr<Shape> self, external;
+	shared_ptr<Shape> self, external; // self is the object that has this AI. External is the owner of the shape that has this AI (external may vary...)
 	bool destroyFlag = false;
 
 	//void* world; // Hack. Points to world object.
@@ -69,7 +75,6 @@ public:
 
 
 class AI_magbomb : public AI {
-
 public:
 	AI_magbomb(shared_ptr<Shape> self_, shared_ptr<Shape> external_);
 	// should explode when it collides with something
@@ -87,7 +92,7 @@ protected:
 };
 
 
-
+// Simple AI that just rotates "self" to point towards the external object, and fires laser sometimes.
 class AI_follow_user : public AI {
 protected:
 	float timePassed = 0.0f;

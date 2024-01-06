@@ -2,7 +2,7 @@
 // - Adding new AIs from the AI's own update() will mess up the iterator. Need to look at how i create new stuff, and create a stack of new stuff to add after the loop.
 	- if update() is the only place this can happen then i can mitigate easy enough i guess
 	- can actually do everything apart from the push_back in update, and then do that after the loop. that should work.
-
+// - real units. Thrust in Newtons, mass in kg, etc.
 // - Find out why it is not framerate independent. fix that. the game is very slow at less than 300ish fps.
 // - Visibility edges: disregard objects outside of screen. Use rectangle-rectangle collision detection.
 // - multiple light sources (realistically maximum 1 other source due to speed, but support for more)
@@ -12,16 +12,20 @@
 // - Need a way to send keypresses to AI's. Wait, I have that... world pointer works now.
 // - Test object with gravity as a force, cover the whole world.
 // - Test that AI players can shoot lasers at me.
-// - Guided missile. Change user_controlled_shape and inputs.
+	// todo: when they're dead, lasers still remain. Need to draw a tree structure of what's really going on in shape/ai-creation, and how to kill it properly.
+	// todo: that whatever-it-is bug when you exit the game afterwards. Maybe need to add all objects properly via "objToAdd" vector
+// - Guided missile - Liero style (to test change of user_controlled_shape and inputs)
 // - Zoom in and out. Do at the same time as moving world.
 // - Once i have framerate etc figure out: add a button to slow down time. Option to compensate by higher speed after. (time-warp facilitator powerup..?)
-	// - get that sound from SlowMoGuys when they slow down time.
+	// - get that sound from  SlowMoGuys when they slow down time.
 // - proper bounce from walls
 // - handle large triangles and circles (bounce, ninja rope, ..) - think circles as walls. not sure how that will work. test it.
 // - ninja rope latch on walls (in the correct place) (will have same problem for other larger objects)
 // - Starry background done. Do sprite as background, like in some olc video..?
 // - Quad tree
 // - rotational physics. (angular momentum, torque, etc). Currently only setting the values directly. 
+// - Starry background should use pseudo random generative algorithm, for use in very large world. (consider the same for other objects)
+// - Handle player death. (killscreen, respawn, etc)
 // 
 // - AI: rename to "controller" maybe?
 // - AI: right now it is added in two places I think. One creates it, and then added in Shape. Should be added in one place only.
@@ -40,6 +44,7 @@ Gameplay ideas/tasks:
 // - Make thrust level off, so it is strong when still, and zero at some point
 //		- Also, make it so that it is stronger when moving in opposite direction of thrust
 // - Exhaust/flames etc. 
+// - Aiming laser, automatic when charging up to fire something. Make able to calculate trajectory, and create a line just long enough with a crosshair at the end
 
 // Notes for next version:
 // - determine if obj class should come back, or shapes is good enough.

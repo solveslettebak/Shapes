@@ -67,11 +67,27 @@ struct sEdge {
 class World : public olc::PixelGameEngine, std::enable_shared_from_this<World> {
 
 private:
+	// all shapes are held in these vectors
 	vector<shared_ptr<Triangle>> sharedPtrTriangles;
 	vector<shared_ptr<Rect>> sharedPtrRectangles;
 	vector<shared_ptr<Line>> sharedPtrLines;
 	vector<shared_ptr<Circle>> sharedPtrCircles;
+
+	// vectors of other attributes that shapes can have. 
+	vector<shared_ptr<AI>> sharedPtrAI;
+	vector<shared_ptr<IHull>> sharedPtrHulls;
+
+	// Stuff created during update, to avoid modifying the vector while iterating over it.
+	// Gets added to the main vector at the end of the update.
+	vector<shared_ptr<Line>> linesToAdd;
+	vector<shared_ptr<Circle>> circlesToAdd;
+	vector<shared_ptr<Triangle>> trianglesToAdd;
+	vector<shared_ptr<Rect>> rectanglesToAdd;
+
+	vector<shared_ptr<AI>> aiToAdd;
+	vector<shared_ptr<IHull>> hullsToAdd;
 	
+	// Player related stuff
 	shared_ptr<Shape> user_controlled_shape;
 	shared_ptr<Line> user_controlled_laser; // kind of a hack..
 	shared_ptr<Line> user_controlled_aim; // kind of a hack..
@@ -80,9 +96,7 @@ private:
 	float magballForce = 0.0f;
 	bool magballCharging = false;
 
-	vector<shared_ptr<AI>> sharedPtrAI;
-	vector<shared_ptr<IHull>> sharedPtrHulls;
-
+	// Shadowcasting stuff
 	vector<sEdge> vecEdges;
 	vector<tuple<float, float, float>> vecVisibilityPolygonPoints;
 
@@ -99,6 +113,8 @@ public:
 
 public:
 	World() { sAppName = "World"; }
+
+	shared_ptr<Shape> getUserControlledObject() { return user_controlled_shape; }
 
 	void createVecEdges() {
 		// TODO: ignore objects off screen
@@ -252,14 +268,15 @@ public:
 
 	void addRandomEnemy() {
 		shared_ptr<Triangle> shape = make_shared<Triangle>(sTriangle{ 10, 8, 10, 22, 30, 15 }, rand() % ScreenWidth(), rand() % ScreenHeight(), olc::RED);
-		sharedPtrTriangles.push_back(shape);
+		//sharedPtrTriangles.push_back(shape);
+		trianglesToAdd.push_back(shape);
 
 		shared_ptr<AI> enemy_AI = make_shared<AI_follow_user>(shape, user_controlled_shape);
 		sharedPtrAI.push_back(enemy_AI);
 		//shape->setAI(enemy_AI); // not used yet
 
-		//World* world = this;
-		//enemy_AI->setWorld(world);  // Leaving this in creates "A breakpoint instruction (__debugbreak() statement or a similar call) was executed" when i exit the game
+		World* world = this;
+		enemy_AI->setWorld(world);  // Leaving this in creates "A breakpoint instruction (__debugbreak() statement or a similar call) was executed" when i exit the game
 
 		shared_ptr<IHull> hull = make_shared<evilTriangleHull>(shape);
 		sharedPtrHulls.push_back(hull);
@@ -326,15 +343,18 @@ public:
 	}
 
 
-	std::shared_ptr<Line> createLaser(shared_ptr<Shape> shape) {
+	std::shared_ptr<Line> createLaser(shared_ptr<Shape> owner) {
 		shared_ptr<Line> laser;
-		laser = make_shared<Line>(shape->getX(), shape->getY());
-		laser->setAngle(shape->getAngle());
+		laser = make_shared<Line>(owner->getX(), owner->getY());
+		//laser->setAngle(target->getAngle());
 		laser->setColor(olc::RED);
-		sharedPtrLines.push_back(laser);
+		//sharedPtrLines.push_back(laser);
+		linesToAdd.push_back(laser);
 
-		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, shape);
-		sharedPtrAI.push_back(ai);
+		// Create Laser AI
+		shared_ptr<AI_laser> ai = make_shared<AI_laser>(laser, owner);
+		//sharedPtrAI.push_back(ai);
+		aiToAdd.push_back(ai); // add it to queue 
 		laser->setAI(ai);
 
 		return laser;
@@ -454,11 +474,11 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override {	
 		Clear(olc::BLACK);
 
-		srand(getRandomNumber());
+		//srand(getRandomNumber());
 
 		float starMotionFactor = 0.5f;
 
-		for (int i = 0; i < 400; i++) {
+		for (int i = 0; i < 4; i++) {
 			int x = int(rand() % WORLD_WIDTH);
 			int y = int(rand() % WORLD_HEIGHT);
 			olc::Pixel p = olc::Pixel(rand() % 255, rand() % 255, rand() % 255);
@@ -547,12 +567,8 @@ public:
 			ForceType ftype;
 			if (each->force(px, py, magnitude, radius_of_influence, ftype)) {
 				// TODO: this may get tricky when i include all objects, not just triangles. Counting same twice etc.
-				for (auto& triangle : sharedPtrTriangles) { 
-					handleForce(each, triangle, px, py, magnitude, radius_of_influence, ftype);
-				}
-				for (auto& circle : sharedPtrCircles) {
-					handleForce(each, circle, px, py, magnitude, radius_of_influence, ftype);
-				}
+				for (auto& triangle : sharedPtrTriangles) { handleForce(each, triangle, px, py, magnitude, radius_of_influence, ftype);}
+				for (auto& circle : sharedPtrCircles) { handleForce(each, circle, px, py, magnitude, radius_of_influence, ftype);}
 			}
 		}
 
@@ -599,6 +615,19 @@ public:
 
 		for (auto& shape : sharedPtrCircles) { shape->updatePosition(fElapsedTime);}
 		for (auto& shape : sharedPtrTriangles) { shape->updatePosition(fElapsedTime); }
+
+		// ----- ADDITIONS ----- //
+
+		for (auto& shape : trianglesToAdd) { sharedPtrTriangles.push_back(shape); }
+		trianglesToAdd.clear();
+		for (auto& shape : circlesToAdd) { sharedPtrCircles.push_back(shape); }
+		circlesToAdd.clear();
+		for (auto& shape : linesToAdd) { sharedPtrLines.push_back(shape); }
+		linesToAdd.clear();
+
+		for (auto& ai : aiToAdd) { sharedPtrAI.push_back(ai); }
+		aiToAdd.clear();
+
 
 		return true;
 	}
@@ -806,7 +835,8 @@ public:
 					}
 				}
 				else if (line) {
-					if (shapes[j] == user_controlled_shape) continue; // don't collide with user... for now. TODO: Figure out better way.. 
+					//if (shapes[j] == user_controlled_shape) continue; // don't collide with user... for now. TODO: Figure out better way.. 
+					if (shapes[j] == line->getAI()->getOwner() ) continue; // don't collide with owner of line ...
 					if (std::shared_ptr<Triangle> triangle = std::dynamic_pointer_cast<Triangle>(shapes[j])) {
 						// do triangle-line collision
 						if (LineTriangleCollision(line->getStruct(), triangle->worldCoordinates(), px, py)) {
@@ -916,7 +946,7 @@ void AI_laser::update(float tElapsedTime) {
 
 void AI_laser::trigger(shared_ptr<Shape> other_object, float fElapsedTime) { // TODO: need fElapsedTime here also
 	other_object->damage(LASER_DAMAGE * fElapsedTime);
-	other_object->addForce(-10.0f * fElapsedTime, self->getAngle());
+	//other_object->addForce(-10.0f * fElapsedTime, self->getAngle()); // voila - tractor beam.
 }
 
 // AI NINJA ROPE //
@@ -1024,8 +1054,8 @@ bool AI_magbomb::force(float& px, float& py, float& magnitude, float& radius_of_
 		// apply force on all objects within radius of influence
 		px = self->getX();
 		py = self->getY();
-		magnitude = -10.0f;
-		radius_of_influence = 200.0f;
+		magnitude = - MB_DAMAGE;
+		radius_of_influence = MB_RADIUS_OF_INFLUENCE;
 		ftype = eExplosion;
 		return true;
 	}
@@ -1033,8 +1063,8 @@ bool AI_magbomb::force(float& px, float& py, float& magnitude, float& radius_of_
 	if (!magnetic) return false;
 	px = self->getX();
 	py = self->getY();
-	magnitude = 0.02f;
-	radius_of_influence = 200.0f;
+	magnitude = MB_MAGNETISM;
+	radius_of_influence = MB_RADIUS_OF_INFLUENCE;
 	ftype = eMagnetic;
 	return true;
 }
@@ -1050,20 +1080,21 @@ void AI_follow_user::update(float tElapsedTime) {
 
 
 	// TODO: This update() function is called while iterating the vector<shared_ptr<AI>>. createLaser() also created a new AI into the same vector. This is bad.
-/*	timePassed += tElapsedTime;
+	timePassed += tElapsedTime;
 
-	if ((!shooting) && (timePassed > 1.0f)) {
+	if ((!shooting) && (rand() % 5000 == 0)) {
 		shooting = true;
+		// Create new shape: Line/Laser
 		AI_controlled_laser = world->createLaser(self);
-		//AI_controlled_laser->setAI(make_shared<AI_laser>(AI_controlled_laser, external));
+		//AI_controlled_laser->setAI(make_shared<AI_laser>(AI_controlled_laser, external)); // this looks like BS.
 	}
 
 	if (shooting) {
-		if (rand() % 20 == 0) {
-			//shooting = false;
-			//AI_controlled_laser->setKillFlag();
+		if (rand() % 10 == 0) {
+			shooting = false;
+			AI_controlled_laser->setKillFlag();
 		}
-	}*/
+	}
 
 
 }
