@@ -135,7 +135,7 @@ public:
 // axes aligned with x and y, no rotation
 class Rect : public Shape {
 public:
-	Rect(float x_, float y_, float w_, float h_, olc::Pixel color_) { x = x_; y = y_; w = w_; h = h_; color = color_; }
+	Rect(float x_, float y_, float w_, float h_, olc::Pixel color_) { x = x_; y = y_; w = w_; h = h_; color = color_; mass = 100000.0f; }
 	float w, h;
 	//olc::Pixel color;
 	float centroidX() override { return (x + w) / 2.0f; } // TODO: Rect isn't updated to have world coordinates and local yet. has only world.

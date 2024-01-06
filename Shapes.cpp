@@ -439,10 +439,10 @@ public:
 
 		user_controlled_shape = createPlayer();
 
-		for (int i = 0; i < 20; i++) addRandomEnemy();
-		for (int i = 0; i < 20; i++) createBall();
+		for (int i = 0; i < 0; i++) addRandomEnemy();
+		for (int i = 0; i < 0; i++) createBall();
 
-		shared_ptr<Rect> leftWall = make_shared<Rect>(10,10, 5, WORLD_HEIGHT - 20, olc::WHITE);
+		shared_ptr<Rect> leftWall = make_shared<Rect>(10, 10, 5, WORLD_HEIGHT - 20, olc::WHITE);
 		shared_ptr<Rect> rightWall = make_shared<Rect>(WORLD_WIDTH - 15, 10, 5, WORLD_HEIGHT - 20, olc::WHITE);
 		shared_ptr<Rect> topWall = make_shared<Rect>(10, 10, WORLD_WIDTH - 20, 5, olc::WHITE);
 		shared_ptr<Rect> bottomWall = make_shared<Rect>(10, WORLD_HEIGHT - 15, WORLD_WIDTH - 20, 5, olc::WHITE);
@@ -724,6 +724,39 @@ public:
 
 	}
 
+	// modified dynamic collision, against a wall. 
+	void dc_wall(Shape* s1, Shape* s2, float px, float py) {
+		float mass1 = s1->getMass();
+		float mass2 = s2->getMass();
+
+		float distance = sqrtf((s1->getX() - px) * (s1->getX() - px) + (s1->getY() - py) * (s1->getY() - py));
+
+		// Normal
+		float nx = (px - s1->getX()) / distance;
+		float ny = (py - s1->getY()) / distance;
+
+		// Tangent
+		float tx = -ny;
+		float ty = nx;
+
+		// Dot Product Tangent
+		float dpTan1 = s1->getVelocityX() * tx + s1->getVelocityY() * ty;
+		float dpTan2 = s2->getVelocityX() * tx + s2->getVelocityY() * ty;
+
+		// Dot Product Normal
+		float dpNorm1 = s1->getVelocityX() * nx + s1->getVelocityY() * ny;
+		float dpNorm2 = s2->getVelocityX() * nx + s2->getVelocityY() * ny;
+
+		// Conservation of momentum in 1D
+		float m1 = (dpNorm1 * (s1->getMass() - s2->getMass()) + 2.0f * s2->getMass() * dpNorm2) / (s1->getMass() + s2->getMass());
+		float m2 = (dpNorm2 * (s2->getMass() - s1->getMass()) + 2.0f * s1->getMass() * dpNorm1) / (s1->getMass() + s2->getMass());
+
+		// Update ball velocities
+		s1->setVelocity(tx * dpTan1 + nx * m1, ty * dpTan1 + ny * m1);
+		s2->setVelocity(tx * dpTan2 + nx * m2, ty * dpTan2 + ny * m2);
+
+	}
+
 	void checkCollisions2(float fElapsedTime) {
 		vector<shared_ptr<Shape>> shapes;
 
@@ -770,8 +803,9 @@ public:
 					else if (std::shared_ptr<Rect> rectangle = std::dynamic_pointer_cast<Rect>(shapes[j])) {
 						// do triangle-rectangle collision
 						if (TriangleRectCollision(triangle->worldCoordinates(), rectangle->getStruct(), px, py)) {
-							triangle->stepBack(fElapsedTime); // move out of the wall
-							triangle->reverse(); // and bounce
+							triangle->stepBack(fElapsedTime * 4.0f); // move out of the wall
+							//triangle->reverse(); // and bounce
+							dc_wall(triangle.get(), rectangle.get(), px, py);
 						}
 					}
 					else if (std::shared_ptr<Circle> circle = std::dynamic_pointer_cast<Circle>(shapes[j])) {

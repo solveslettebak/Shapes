@@ -268,6 +268,7 @@ bool TriangleRectCollision(sTriangle tr, sRect rect, float& px, float& py) {
 
 	std::vector<sLine> rectLines = { rectA, rectB, rectC, rectD };
 
+	// TODO: get the more precise point of collision. Currently it's an "early out" on any collision, not necessarily the correct one. I think.. 
 	for (auto trLine : trLines) {
 		for (auto rectLine : rectLines) {
 			if (LineLineCollision(trLine, rectLine, px, py)) {
