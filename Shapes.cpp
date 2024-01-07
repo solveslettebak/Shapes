@@ -100,6 +100,10 @@ private:
 	vector<sEdge> vecEdges;
 	vector<tuple<float, float, float>> vecVisibilityPolygonPoints;
 
+	//olc::Sprite shadowLands = olc::Sprite(800, 600);
+
+	int shadowLayer;
+
 public:
 	float scrPosX = 0.0f;
 	float scrPosY = 0.0f;
@@ -256,13 +260,13 @@ public:
 				float y2 = get<2>(vecVisibilityPolygonPoints[i]) - scrPosY;
 				float x3 = get<1>(vecVisibilityPolygonPoints[i + 1]) - scrPosX;
 				float y3 = get<2>(vecVisibilityPolygonPoints[i + 1]) - scrPosY;
-				FillTriangle(x1, y1, x2, y2, x3, y3, olc::DARK_BLUE);
+				FillTriangle(x1, y1, x2, y2, x3, y3, olc::Pixel(VISIBLE_COLOR_R, VISIBLE_COLOR_G, VISIBLE_COLOR_B));
 			}
 			float x2 = get<1>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]) - scrPosX;
 			float y2 = get<2>(vecVisibilityPolygonPoints[vecVisibilityPolygonPoints.size() - 1]) - scrPosY;
 			float x3 = get<1>(vecVisibilityPolygonPoints[0]) - scrPosX;
 			float y3 = get<2>(vecVisibilityPolygonPoints[0]) - scrPosY;
-			FillTriangle(x1, y1, x2, y2, x3, y3, olc::DARK_BLUE);
+			FillTriangle(x1, y1, x2, y2, x3, y3, olc::Pixel(olc::BLANK));//olc::Pixel(VISIBLE_COLOR_R, VISIBLE_COLOR_G, VISIBLE_COLOR_B));
 		}
 	}
 
@@ -272,14 +276,18 @@ public:
 		trianglesToAdd.push_back(shape);
 
 		shared_ptr<AI> enemy_AI = make_shared<AI_follow_user>(shape, user_controlled_shape);
-		sharedPtrAI.push_back(enemy_AI);
+		//sharedPtrAI.push_back(enemy_AI);
+		aiToAdd.push_back(enemy_AI); // add it to queue
 		//shape->setAI(enemy_AI); // not used yet
 
-		World* world = this;
-		enemy_AI->setWorld(world);  // Leaving this in creates "A breakpoint instruction (__debugbreak() statement or a similar call) was executed" when i exit the game
+		//World* world = this;
+		//enemy_AI->setWorld(world);  // Leaving this in creates "A breakpoint instruction (__debugbreak() statement or a similar call) was executed" when i exit the game
+
+		//std::shared_ptr<World> worldPtr = shared_from_this();
+		enemy_AI->setWorld(shared_from_this());
 
 		shared_ptr<IHull> hull = make_shared<evilTriangleHull>(shape);
-		sharedPtrHulls.push_back(hull);
+		sharedPtrHulls.push_back(hull); // TODO: create queue for hulls too
 		shape->setHull(hull);
 		shape->setCanBeDamaged(true);
 
@@ -307,6 +315,7 @@ public:
 		circle->addForce(MB_FIRING_FORCE_MINIMUM + force * MB_FIRING_FORCE_MULTIPLIER, user_controlled_shape->getAngle());
 		circle->setVelocity(user_controlled_shape->getVelocityX(), user_controlled_shape->getVelocityY());
 		circle->setIsSeeThrough(true);
+		circle->setBounciness(MB_BOUNCINESS); 
 
 		shared_ptr<IHull> hull = make_shared<genericWeaponHull>(circle);
 		sharedPtrHulls.push_back(hull);
@@ -328,7 +337,7 @@ public:
 
 		shared_ptr<AI> ai = make_shared<AI_ninjarope>(circle, user_controlled_shape);
 		sharedPtrAI.push_back(ai);
-		ai->setWorld(this);
+		//ai->setWorld(this);
 		ai->setup();
 		circle->setAI(ai);
 		return circle;
@@ -372,7 +381,7 @@ public:
 		World *world = this;
 		
 		//ai->setWorld(shared_from_this()); // TODO: figure out this shit and work with proper shared_ptrs or whatever. For now - this somehow compiles.
-		ai->setWorld(world);
+		//ai->setWorld(world);
 		sharedPtrAI.push_back(ai);
 		aim->setAI(ai);
 
@@ -460,8 +469,10 @@ public:
 		randomWall3->setColor(olc::BLUE);
 		randomWall4->setColor(olc::BLUE);
 
-
-		//createVecEdges(); // moved to update per frame
+		shadowLayer = CreateLayer();
+		SetDrawTarget(shadowLayer);
+		Clear(olc::WHITE);
+		SetDrawTarget(nullptr);
 
 		return true;
 	}
@@ -472,13 +483,13 @@ public:
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {	
-		Clear(olc::BLACK);
+		Clear(olc::BLANK);
 
 		//srand(getRandomNumber());
 
 		float starMotionFactor = 0.5f;
 
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 400; i++) {
 			int x = int(rand() % WORLD_WIDTH);
 			int y = int(rand() % WORLD_HEIGHT);
 			olc::Pixel p = olc::Pixel(rand() % 255, rand() % 255, rand() % 255);
@@ -714,9 +725,11 @@ public:
 		float dpNorm1 = s1->getVelocityX() * nx + s1->getVelocityY() * ny;
 		float dpNorm2 = s2->getVelocityX() * nx + s2->getVelocityY() * ny;
 
+		float bounciness = s1->getBounciness() * s2->getBounciness();
+
 		// Conservation of momentum in 1D
-		float m1 = (dpNorm1 * (s1->getMass() - s2->getMass()) + 2.0f * s2->getMass() * dpNorm2) / (s1->getMass() + s2->getMass());
-		float m2 = (dpNorm2 * (s2->getMass() - s1->getMass()) + 2.0f * s1->getMass() * dpNorm1) / (s1->getMass() + s2->getMass());
+		float m1 = (dpNorm1 * (s1->getMass() - s2->getMass()) + 2.0f * s2->getMass() * dpNorm2) / (s1->getMass() + s2->getMass()) * bounciness;
+		float m2 = (dpNorm2 * (s2->getMass() - s1->getMass()) + 2.0f * s1->getMass() * dpNorm1) / (s1->getMass() + s2->getMass()) * bounciness;
 
 		// Update ball velocities
 		s1->setVelocity(tx * dpTan1 + nx * m1, ty * dpTan1 + ny * m1);
@@ -1011,7 +1024,7 @@ void AI_ninjarope::update(float tElapsedTime) {
 	if (locked) {
 		float distance = sqrtf((locked_on_object->getX() - external->getX()) * (locked_on_object->getX() - external->getX()) + (locked_on_object->getY() - external->getY()) * (locked_on_object->getY() - external->getY()));
 		float angle = atan2(locked_on_object->getY() - external->getY(), locked_on_object->getX() - external->getX());
-		float force = distance * 0.3f * tElapsedTime;
+		float force = distance * NR_FORCE_MULTIPLIER * tElapsedTime;
 		locked_on_object->addForce(-force, angle);
 		external->addForce(force, angle);
 		self->setVisible(false);
@@ -1112,11 +1125,11 @@ void AI_follow_user::update(float tElapsedTime) {
 	float angle = atan2(dy, dx);
 	self->setAngle(angle);
 
-
-	// TODO: This update() function is called while iterating the vector<shared_ptr<AI>>. createLaser() also created a new AI into the same vector. This is bad.
+	
+	
 	timePassed += tElapsedTime;
-
-	if ((!shooting) && (rand() % 5000 == 0)) {
+	
+	if ((!shooting) && (rand() % 1000 == 0)) {
 		shooting = true;
 		// Create new shape: Line/Laser
 		AI_controlled_laser = world->createLaser(self);
@@ -1137,9 +1150,10 @@ void AI_follow_user::update(float tElapsedTime) {
 
 
 int main() {
-	World world;
+	//World world;
+	shared_ptr<World> world = make_shared<World>();
 
-	if (world.Construct(800, 600, 1, 1))
-		world.Start();
+	if (world->Construct(800, 600, 1, 1))
+		world->Start();
 	return 0;
 }

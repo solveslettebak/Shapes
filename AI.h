@@ -27,7 +27,10 @@ public:
 	shared_ptr<Shape> getSelf() { return self; }
 
 	//void setWorld(shared_ptr<World> world_) { world = world_; }
-	void setWorld(World* world_) { world = shared_ptr<World>(world_); }
+	//void setWorld(World* world_) { world = shared_ptr<World>(world_); }
+	void setWorld(const std::shared_ptr<World>& world_) {
+		world = world_;
+	}
 	shared_ptr<World> getWorld() { return world; }
 
 	shared_ptr<Shape> getOwner() { return external; }

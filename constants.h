@@ -2,6 +2,9 @@
 
 // Game settings
 const bool SHADOWS = true;
+const int VISIBLE_COLOR_R = 0;
+const int VISIBLE_COLOR_G = 0;
+const int VISIBLE_COLOR_B = 64;
 
 // World constants
 const int WORLD_WIDTH = 1800;
@@ -20,6 +23,7 @@ const float MB_FIRING_FORCE_MULTIPLIER = 1500.0f;
 const float MB_FIRING_FORCE_MINIMUM = 750.0f;
 const float MB_MASS		     =  1.0f;
 const float MB_RADIUS_OF_INFLUENCE = 200.0f;
+const float MB_BOUNCINESS = 1.0f; // not ready for reduced bounciness yet. Causes trouble in my only semi-functional collision detection. Need proper static collision resolution first.
 
 // Standard ship constants
 const float SHIP_ROTATE_SPEED_FAST =  3.0f;
@@ -31,7 +35,7 @@ const float SHIP_MASS = 100.0f;
 const float LASER_DAMAGE = 100.0f;
 
 // Ninja rope constants 
-//const float NR_FORCE = 100.0f;
+const float NR_FORCE_MULTIPLIER = 100.0f;
 //const float NR_ANCHOR_MASS = 1.0f;
 //const float NR_LENGTH_MIN = 100.0f;
 //const float NR_LENGTH_MAX = 200.0f;

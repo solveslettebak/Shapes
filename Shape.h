@@ -42,6 +42,7 @@ public:
 	float getMass() { return mass; }
 	void reverse() { vx = -vx; vy = -vy; }
 	void stepBack(float fElapsedTime) { x -= vx * fElapsedTime; y -= vy * fElapsedTime; }
+
 	bool getCanCollide() { return canCollide; }
 	void setCanCollide(bool canCollide_) { canCollide = canCollide_; }
 	bool getFilled() { return filled; }
@@ -54,6 +55,8 @@ public:
 	void setIsInShadow(bool isInShadow_) { isInShadow = isInShadow_; }
 	bool getIsSeeThrough() { return isSeeThrough; }
 	void setIsSeeThrough(bool isSeeThrough_) { isSeeThrough = isSeeThrough_; }
+	float getBounciness() { return bounciness; }
+	void setBounciness(float bounciness_) { bounciness = bounciness_; }
 
 
 
@@ -88,6 +91,7 @@ protected:
 	float vx = 0, vy = 0, ax = 0, ay = 0; // velocity, acceleration
 
 	float mass = 100; // kg
+	float bounciness = 1.0f; // TODO: implement in physically proper way.
 	float angle; // radians
 	float forceX = 0.0f;
 	float forceY = 0.0f;
